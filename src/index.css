@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. `static` emits every variable even when no utility uses it,
+ * so they are always available as var(--color-*) / var(--font-*).
+ *
+ * paper  page background      sheet  card / surface
+ * ink    text                 drop   rose — structure, labels
+ * pen    ballpoint blue — anything the user does (actions, selections)
+ * ok / bad / warn             feedback
+ */
+@theme static {
+  --font-display: "Familjen Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-paper: #f5f6fa;
+  --color-sheet: #ffffff;
+  --color-ink: #151829;
+  --color-drop: #c4465f;
+  --color-pen: #2441a6;
+  --color-ok: #137a5a;
+  --color-bad: #b3261e;
+  --color-warn: #935605;
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-paper: #10121b;
+      --color-sheet: #171a26;
+      --color-ink: #e7e8f0;
+      --color-drop: #ee8aa0;
+      --color-pen: #8fa3ff;
+      /* Lightened so feedback colours stay legible on dark surfaces. */
+      --color-ok: #4cc49a;
+      --color-bad: #f2867c;
+      --color-warn: #e3a64f;
+    }
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+  }
+
+  /* Tailwind v4 resets buttons to the default cursor. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
