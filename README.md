@@ -1,17 +1,28 @@
 # vprep
 
-Exam-preparation platform. This repo is currently the **foundation only**: routing, layout, design tokens, UI primitives, domain types and the Supabase client. No features yet.
+Exam-preparation platform. This repo is currently the **foundation only**: routing, layout, design tokens, UI primitives, domain types, the database schema and the Neon client. No features yet.
 
 ## Stack
 
 - React 18 + TypeScript, built with Vite
 - Tailwind CSS v4 via the `@tailwindcss/vite` plugin (no `tailwind.config.js`; tokens live in `src/index.css`)
 - React Router
-- Supabase JS client
+- [Neon](https://neon.tech): Postgres, with Neon Auth for sign-in and the Neon Data API for queries from the browser, through `@neondatabase/neon-js`
 
 ## Setup
 
 Requires Node.js `^20.19.0` or `>=22.12.0`.
+
+### 1. Set up the Neon database
+
+Do this once per Neon project, in the [Neon Console](https://console.neon.tech), in this order. The schema script checks that steps 1 and 2 are done and stops with a clear message if they aren't.
+
+1. **Enable Neon Auth.** Open **Auth** and click **Enable Auth**.
+2. **Enable the Data API.** Open **Data API**, tick **Use Neon Auth**, and click **Enable Data API**.
+3. **Create the schema.** Open the **SQL Editor**, paste in all of [`db/migrations/0001_schema.sql`](db/migrations/0001_schema.sql) and run it. It creates the tables, Row Level Security policies, views and functions in one transaction, so if it fails nothing is created and you can run it again after fixing the problem.
+4. **Load the seed data.** In the SQL Editor, run all of [`db/seed.sql`](db/seed.sql). It adds 7 exams with their subjects and topics, 27 formulas and 54 published questions. Run it only once: a second run fails on duplicate slugs and changes nothing.
+
+### 2. Run the app
 
 ```bash
 # 1. Install dependencies
@@ -19,16 +30,18 @@ npm install
 
 # 2. Create your local env file
 cp .env.example .env
-#    then set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-#    (from your Supabase project's API settings)
+#    then set VITE_NEON_AUTH_URL (Neon Console -> Auth)
+#    and VITE_NEON_DATA_API_URL (Neon Console -> Data API)
 
 # 3. Start the dev server
 npm run dev
 ```
 
-`.env` is gitignored, so don't commit real keys. The anon key ends up in the browser bundle. That's expected for Supabase, but it means every table needs Row Level Security policies.
+The Home page shows a temporary connection check. If everything is set up it reads **Database connected: 7 exams, 54 questions**. Otherwise it shows the full error in red.
 
-The app runs without `.env` until something imports `src/lib/supabase.ts`. From then on, missing variables throw a clear error at startup.
+`.env` is gitignored, so don't commit it. Both URLs end up in the browser bundle. That's expected: the Data API is public, and the Row Level Security policies in the schema decide what each request can see. Signed-out visitors get an anonymous token (`allowAnonymous: true` in `src/lib/neon.ts`), which lets them read exams, subjects, topics, formulas and published questions, and nothing else.
+
+`src/lib/neon.ts` throws a clear error at startup if either variable is missing.
 
 ## Scripts
 
@@ -42,14 +55,18 @@ The app runs without `.env` until something imports `src/lib/supabase.ts`. From 
 ## Project structure
 
 ```
+db/
+  migrations/    0001_schema.sql (tables, RLS, views, functions)
+  seed.sql       Exams, subjects, topics, formulas, questions
 src/
   components/
     ui/          Button, Card, Tag, Bubble (OMR-style option circle)
     layout/      AppShell (sidebar on desktop, bottom tab bar on mobile),
                  PageHeader, nav config
   pages/         One component per route (title only for now)
-  lib/           supabase.ts (client), cx.ts (class-name helper)
-  types/         Exam, Subject, Topic, Question, Attempt, AttemptStatus
+  lib/           neon.ts (Neon Auth + Data API client), cx.ts (class-name helper)
+  types/         One interface per table, view and function result,
+                 plus a union type for every CHECK constraint
   hooks/         (empty)
   App.tsx        Router
   index.css      Tailwind import + design tokens
