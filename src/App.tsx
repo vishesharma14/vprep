@@ -1,4 +1,6 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { AuthProvider } from './auth/AuthProvider'
+import { RequireAuth } from './auth/RequireAuth'
 import { AppShell } from './components/layout/AppShell'
 import { Account } from './pages/Account'
 import { Admin } from './pages/Admin'
@@ -24,12 +26,33 @@ const router = createBrowserRouter([
       { path: 'practice', element: <Practice /> },
       { path: 'test', element: <TimedTest /> },
       { path: 'result', element: <Result /> },
-      { path: 'revision', element: <Revision /> },
+      {
+        path: 'revision',
+        element: (
+          <RequireAuth title="Revision" signInMessage="Sign in to see your revision">
+            <Revision />
+          </RequireAuth>
+        ),
+      },
       { path: 'formulas', element: <Formulas /> },
-      { path: 'progress', element: <Progress /> },
+      {
+        path: 'progress',
+        element: (
+          <RequireAuth title="Progress" signInMessage="Sign in to see your progress">
+            <Progress />
+          </RequireAuth>
+        ),
+      },
       { path: 'leaderboard', element: <Leaderboard /> },
       { path: 'search', element: <Search /> },
-      { path: 'admin', element: <Admin /> },
+      {
+        path: 'admin',
+        element: (
+          <RequireAuth title="Admin" admin>
+            <Admin />
+          </RequireAuth>
+        ),
+      },
       { path: 'account', element: <Account /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
@@ -37,5 +60,9 @@ const router = createBrowserRouter([
 ])
 
 export default function App() {
-  return <RouterProvider router={router} />
+  return (
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  )
 }

@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from 'react'
+import { Link, type LinkProps } from 'react-router-dom'
 import { cx } from '../../lib/cx'
 
 type Variant = 'primary' | 'secondary' | 'ghost'
@@ -15,6 +16,16 @@ const sizes: Record<Size, string> = {
   md: 'h-11 px-5 text-base',
 }
 
+const buttonClass = (variant: Variant, size: Size, className?: string) =>
+  cx(
+    'inline-flex items-center justify-center gap-2 rounded-lg font-bold transition-colors',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pen',
+    'disabled:pointer-events-none disabled:opacity-50',
+    variants[variant],
+    sizes[size],
+    className,
+  )
+
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant
   size?: Size
@@ -27,18 +38,15 @@ export function Button({
   className,
   ...props
 }: ButtonProps) {
-  return (
-    <button
-      type={type}
-      className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-bold transition-colors',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pen',
-        'disabled:pointer-events-none disabled:opacity-50',
-        variants[variant],
-        sizes[size],
-        className,
-      )}
-      {...props}
-    />
-  )
+  return <button type={type} className={buttonClass(variant, size, className)} {...props} />
+}
+
+interface ButtonLinkProps extends LinkProps {
+  variant?: Variant
+  size?: Size
+}
+
+/** A router link that looks like a Button. */
+export function ButtonLink({ variant = 'primary', size = 'md', className, ...props }: ButtonLinkProps) {
+  return <Link className={buttonClass(variant, size, className)} {...props} />
 }

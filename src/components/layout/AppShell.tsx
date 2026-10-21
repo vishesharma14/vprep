@@ -1,11 +1,21 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { signInHref } from '../../auth/redirect'
+import { useAuth, type AuthContextValue } from '../../auth/useAuth'
 import { cx } from '../../lib/cx'
+import { ButtonLink } from '../ui/Button'
 import { Bubble } from '../ui/Bubble'
 import { navGroups, navItems, type NavItem } from './nav'
 
 const tabItems = navItems.filter((item) => item.tab)
 const moreItems = navItems.filter((item) => !item.tab)
+
+const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pen'
+
+/** The signed-in learner's name, falling back to the Neon Auth name and email. */
+function displayName(auth: AuthContextValue & { status: 'signed-in' }) {
+  return auth.profile?.full_name || auth.user.name || auth.user.email
+}
 
 /** Sidebar on desktop (md+), top bar + bottom tab bar on mobile. */
 export function AppShell() {
@@ -58,7 +68,38 @@ function Sidebar() {
           </div>
         ))}
       </nav>
+      <SidebarAccount />
     </aside>
+  )
+}
+
+/** Who is signed in. Renders nothing while the session loads, so it doesn't flicker. */
+function SidebarAccount() {
+  const auth = useAuth()
+  const { pathname, search } = useLocation()
+  if (auth.status === 'loading') return null
+
+  return (
+    <div className="mt-auto border-t border-ink/10 pt-4">
+      {auth.status === 'signed-in' ? (
+        <Link
+          to="/account"
+          className={cx('flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-ink/5', focusRing)}
+        >
+          <Bubble label={Array.from(displayName(auth))[0]?.toUpperCase()} state="filled" />
+          <span className="min-w-0">
+            <span className="block truncate font-bold">{displayName(auth)}</span>
+            <span className="block font-mono text-[0.6875rem] uppercase tracking-wider text-ink/60">
+              Your account
+            </span>
+          </span>
+        </Link>
+      ) : (
+        <ButtonLink to={signInHref(pathname + search)} variant="secondary" className="w-full">
+          Sign in
+        </ButtonLink>
+      )}
+    </div>
   )
 }
 
@@ -87,16 +128,39 @@ function SidebarLink({ item }: { item: NavItem }) {
 function MobileHeader() {
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-ink/10 bg-paper/90 px-4 backdrop-blur md:hidden">
-      <Brand />
-      <NavLink
-        to="/search"
-        className={({ isActive }) =>
-          cx('font-mono text-xs uppercase tracking-wider', isActive ? 'text-pen' : 'text-ink/70')
-        }
-      >
-        Search
-      </NavLink>
+      <Brand className="shrink-0" />
+      <div className="flex min-w-0 items-center gap-4">
+        <NavLink
+          to="/search"
+          className={({ isActive }) =>
+            cx('font-mono text-xs uppercase tracking-wider', isActive ? 'text-pen' : 'text-ink/70')
+          }
+        >
+          Search
+        </NavLink>
+        <HeaderAccount />
+      </div>
     </header>
+  )
+}
+
+/** Mobile counterpart of SidebarAccount; also hidden while the session loads. */
+function HeaderAccount() {
+  const auth = useAuth()
+  const { pathname, search } = useLocation()
+  if (auth.status === 'loading') return null
+
+  return auth.status === 'signed-in' ? (
+    <Link to="/account" className={cx('max-w-28 truncate rounded text-sm font-bold text-pen', focusRing)}>
+      {displayName(auth)}
+    </Link>
+  ) : (
+    <Link
+      to={signInHref(pathname + search)}
+      className={cx('rounded font-mono text-xs font-bold uppercase tracking-wider text-pen', focusRing)}
+    >
+      Sign in
+    </Link>
   )
 }
 

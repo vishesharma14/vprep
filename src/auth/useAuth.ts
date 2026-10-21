@@ -1,0 +1,62 @@
+import { createContext, useContext } from 'react'
+import type { BetterAuthUser } from '@neondatabase/neon-js/auth/types'
+import type { Profile } from '../types'
+
+// The context lives here, apart from AuthProvider.tsx, so that file exports
+// only a component and keeps fast refresh.
+
+export type AuthStatus = 'loading' | 'signed-out' | 'signed-in'
+
+/** The Neon Auth user from the session (the fields the app uses). */
+export type AuthUser = Pick<BetterAuthUser, 'id' | 'name' | 'email' | 'emailVerified'>
+
+/** The only profile columns a learner may change; the database rejects the rest. */
+export type ProfileChanges = Partial<Pick<Profile, 'full_name' | 'state' | 'daily_goal'>>
+
+export interface SignUpInput {
+  name: string
+  email: string
+  password: string
+  /** State or union territory, or null if not chosen. */
+  state: string | null
+}
+
+export interface SignInInput {
+  email: string
+  password: string
+}
+
+export interface SignUpResult {
+  /** Email verification is on: no session until the learner verifies and signs in. */
+  needsVerification: boolean
+}
+
+export type AuthState =
+  | { status: 'loading' | 'signed-out'; user: null; profile: null; profileError: null }
+  | {
+      status: 'signed-in'
+      user: AuthUser
+      /** Null only if ensure_profile failed; `profileError` says why. */
+      profile: Profile | null
+      profileError: string | null
+    }
+
+/**
+ * signUp, signIn, signOut and updateProfile throw an Error whose message is
+ * ready to show to the learner. refreshProfile reports through profileError.
+ */
+export type AuthContextValue = AuthState & {
+  signUp: (input: SignUpInput) => Promise<SignUpResult>
+  signIn: (input: SignInInput) => Promise<void>
+  signOut: () => Promise<void>
+  updateProfile: (changes: ProfileChanges) => Promise<void>
+  refreshProfile: () => Promise<void>
+}
+
+export const AuthContext = createContext<AuthContextValue | null>(null)
+
+export function useAuth() {
+  const value = useContext(AuthContext)
+  if (!value) throw new Error('useAuth() must be used inside <AuthProvider>.')
+  return value
+}
