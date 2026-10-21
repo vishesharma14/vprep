@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { BetterAuthUser } from '@neondatabase/neon-js/auth/types'
+import { dbErrorMessage, NETWORK_ERROR } from '../lib/errors'
 import { neon } from '../lib/neon'
 import type { Profile } from '../types'
 import {
@@ -15,7 +16,6 @@ import {
 const LOADING: AuthState = { status: 'loading', user: null, profile: null, profileError: null }
 const SIGNED_OUT: AuthState = { status: 'signed-out', user: null, profile: null, profileError: null }
 
-const NETWORK_ERROR = "Can't reach the server. Check your internet connection and try again."
 const NO_SESSION =
   "You're signed in, but the browser didn't keep the session. Allow cookies for this site and try again."
 
@@ -205,9 +205,4 @@ function authErrorMessage(err: unknown) {
   if (c === 'email_address_invalid' || c === 'invalid_email') return 'Enter a valid email address.'
   if (status === 429) return 'Too many attempts. Wait a minute, then try again.'
   return text || 'Something went wrong. Please try again.'
-}
-
-/** postgrest-js reports a request that never reached the server as status 0. */
-function dbErrorMessage(error: { message: string }, status: number) {
-  return status === 0 ? NETWORK_ERROR : error.message
 }

@@ -188,6 +188,34 @@ export interface MistakeRow {
   cleared_at: string | null
 }
 
+/** A row of the topic_catalog view. Counts published questions only. */
+export interface TopicCatalogRow {
+  topic_id: string
+  subject_id: string
+  question_count: number
+  easy_count: number
+  medium_count: number
+  hard_count: number
+  /** Previous year questions. */
+  pyq_count: number
+  /** Distinct subtopics of the published questions, sorted; empty if none. */
+  subtopics: string[]
+}
+
+/** A row of the my_topic_progress view: the signed-in learner's own progress in one topic. */
+export interface TopicProgressRow {
+  topic_id: string
+  /** Distinct questions tried. */
+  attempted: number
+  /** Graded attempts (correct or incorrect). Accuracy = correct / answered. */
+  answered: number
+  /** Attempts solved independently or after a hint. */
+  correct: number
+  /** Attempts solved with no help. */
+  independent: number
+  last_attempt_at: string
+}
+
 /** A row returned by get_leaderboard(). */
 export interface LeaderboardRow {
   /** bigint, returned by the Data API as a number. Ties share a rank. */

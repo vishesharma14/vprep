@@ -22,7 +22,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Home /> },
       { path: 'exams', element: <Exams /> },
-      { path: 'exams/:examId', element: <ExamDetail /> },
+      { path: 'exams/:slug', element: <ExamDetail /> },
       { path: 'practice', element: <Practice /> },
       { path: 'test', element: <TimedTest /> },
       { path: 'result', element: <Result /> },
