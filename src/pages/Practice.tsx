@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { signInHref } from '../auth/redirect'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { PageHeader } from '../components/layout/PageHeader'
+import { GuestNotice } from '../components/practice/GuestNotice'
 import { QuestionScreen, type Answer } from '../components/practice/QuestionScreen'
 import { Summary, type PracticeResult } from '../components/practice/Summary'
 import { ButtonLink } from '../components/ui/Button'
@@ -49,7 +49,6 @@ type SaveState = { status: 'saving' } | { status: 'saved' } | { status: 'failed'
 function PracticeSession({ set, signedIn }: { set: PracticeSet; signedIn: boolean }) {
   const { signInCount } = useAuth()
   const navigate = useNavigate()
-  const { pathname, search } = useLocation()
   const { questions, pool } = set
   const [index, setIndex] = useState(0)
   const [results, setResults] = useState<PracticeResult[]>([])
@@ -107,18 +106,7 @@ function PracticeSession({ set, signedIn }: { set: PracticeSet; signedIn: boolea
 
   return (
     <div className={`${pageClass} flex flex-col gap-4`}>
-      {!signedIn && (
-        <Notice tone="info">
-          You're practising as a guest.{' '}
-          <Link
-            to={signInHref(pathname + search)}
-            className="rounded font-bold text-pen underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-pen"
-          >
-            Sign in
-          </Link>{' '}
-          to save your progress.
-        </Notice>
-      )}
+      {!signedIn && <GuestNotice />}
       {failed.length > 0 && (
         <Notice tone="bad">
           {failed.length === 1 ? "1 answer wasn't saved." : `${plural(failed.length, 'answer')} weren't saved.`}{' '}

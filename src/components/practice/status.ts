@@ -20,6 +20,13 @@ export const STATUS_TONE: Record<AttemptStatus, TagTone> = {
   skipped: 'ink',
 }
 
+/** How many results ended with each status. */
+export function statusCounts(results: Array<{ status: AttemptStatus }>) {
+  const counts = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0])) as Record<AttemptStatus, number>
+  for (const result of results) counts[result.status]++
+  return counts
+}
+
 /** Fill for bar segments and legend swatches. */
 export const STATUS_FILL: Record<AttemptStatus, string> = {
   independent: 'bg-ok',

@@ -9,7 +9,7 @@ import { Card } from '../ui/Card'
 import { Disclosure } from '../ui/Disclosure'
 import { Tag } from '../ui/Tag'
 import type { Answer } from './QuestionScreen'
-import { STATUS_FILL, STATUS_LABEL, STATUS_ORDER, STATUS_TONE } from './status'
+import { STATUS_FILL, STATUS_LABEL, STATUS_ORDER, STATUS_TONE, statusCounts } from './status'
 
 export interface PracticeResult extends Answer {
   question: PracticeQuestion
@@ -36,8 +36,7 @@ export function Summary({ results, total, exam }: SummaryProps) {
     window.scrollTo({ top: 0 })
   }, [])
 
-  const counts = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0])) as StatusCounts
-  for (const result of results) counts[result.status]++
+  const counts = statusCounts(results)
   const correct = results.filter((r) => isCorrect(r.status)).length
   const graded = results.filter((r) => isGraded(r.status)).length
   const accuracy = graded > 0 ? Math.round((correct / graded) * 100) : null
@@ -116,7 +115,7 @@ export function Summary({ results, total, exam }: SummaryProps) {
 }
 
 /** One bar split by status, with a legend that also gives the counts. */
-function StatusBar({ counts }: { counts: StatusCounts }) {
+export function StatusBar({ counts }: { counts: StatusCounts }) {
   return (
     <div className="flex flex-col gap-3">
       {/* The legend carries the numbers; the bar is the picture of them. */}
@@ -143,7 +142,14 @@ function StatusBar({ counts }: { counts: StatusCounts }) {
   )
 }
 
-function ReviewItem({ result, number }: { result: PracticeResult; number: number }) {
+interface ReviewItemProps {
+  result: PracticeResult
+  number: number
+  /** From a timed test: shows the time spent, and "Not answered" for a skip. */
+  timed?: boolean
+}
+
+export function ReviewItem({ result, number, timed = false }: ReviewItemProps) {
   const { question, status, selectedIndex } = result
   const option = (i: number) => `${optionLetter(i)}. ${question.options[i]}`
 
@@ -164,10 +170,18 @@ function ReviewItem({ result, number }: { result: PracticeResult; number: number
               ? option(selectedIndex)
               : status === 'revealed'
                 ? 'None, you viewed the answer first'
-                : 'Skipped'}
+                : timed
+                  ? 'Not answered'
+                  : 'Skipped'}
           </dd>
           <dt className="text-ink/60">Correct answer</dt>
-          <dd className="break-words font-bold">{option(question.answer_index)}</dd>
+          <dd className={cx('break-words font-bold', timed && 'mb-2 sm:mb-0')}>{option(question.answer_index)}</dd>
+          {timed && (
+            <>
+              <dt className="text-ink/60">Time spent</dt>
+              <dd className="font-mono">{formatDuration(result.timeSpentMs)}</dd>
+            </>
+          )}
         </dl>
         <Disclosure title="Explanation">
           <p className="whitespace-pre-line">{question.explanation || 'No explanation yet.'}</p>

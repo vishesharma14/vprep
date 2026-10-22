@@ -44,6 +44,14 @@ export function EyeIcon({ className }: { className?: string }) {
   )
 }
 
+export function FlagIcon({ className }: { className?: string }) {
+  return (
+    <Icon className={className}>
+      <path d="M5 17.5V3M5 3.75h10l-2.5 3.5 2.5 3.5H5" />
+    </Icon>
+  )
+}
+
 export function ChevronIcon({ className }: { className?: string }) {
   return (
     <Icon className={className}>

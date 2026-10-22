@@ -47,13 +47,19 @@ export const attemptsRevision = () => revision
 export const attemptsSettled = () => Promise.allSettled(saving)
 
 /** Inserts one attempt for the signed-in learner. Resolves to an error message, or null once saved. */
-export function saveAttempt(attempt: NewAttempt): Promise<string | null> {
-  const row = {
+export const saveAttempt = (attempt: NewAttempt) => saveAttempts([attempt])
+
+/**
+ * Inserts attempts for the signed-in learner in one request, so either all
+ * are saved or none are. Resolves to an error message, or null once saved.
+ */
+export function saveAttempts(attempts: NewAttempt[]): Promise<string | null> {
+  const rows = attempts.map((attempt) => ({
     ...attempt,
     time_spent_ms: Math.min(MAX_TIME_MS, Math.max(0, Math.round(attempt.time_spent_ms))),
-  }
+  }))
   revision++
-  const save = withSessionRecovery(() => neon.from('attempts').insert(row)).then(
+  const save = withSessionRecovery(() => neon.from('attempts').insert(rows)).then(
     ({ error, status, expired }) => (error ? (expired ? SESSION_EXPIRED : dbErrorMessage(error, status)) : null),
     () => NETWORK_ERROR,
   )
