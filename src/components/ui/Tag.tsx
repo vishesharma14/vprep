@@ -1,9 +1,9 @@
 import type { HTMLAttributes } from 'react'
 import { cx } from '../../lib/cx'
 
-type Tone = 'drop' | 'pen' | 'ok' | 'bad' | 'warn' | 'ink'
+export type TagTone = 'drop' | 'pen' | 'ok' | 'bad' | 'warn' | 'ink'
 
-const tones: Record<Tone, string> = {
+const tones: Record<TagTone, string> = {
   drop: 'bg-drop/10 text-drop',
   pen: 'bg-pen/10 text-pen',
   ok: 'bg-ok/10 text-ok',
@@ -13,7 +13,7 @@ const tones: Record<Tone, string> = {
 }
 
 interface TagProps extends HTMLAttributes<HTMLSpanElement> {
-  tone?: Tone
+  tone?: TagTone
 }
 
 /** Small mono label, e.g. a subject, difficulty or attempt status. */

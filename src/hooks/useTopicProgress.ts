@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useAuth } from '../auth/useAuth'
+import { attemptsRevision, attemptsSettled } from '../lib/attempts'
 import { dbErrorMessage } from '../lib/errors'
 import { neon } from '../lib/neon'
 import type { TopicProgressRow } from '../types'
@@ -12,16 +13,23 @@ const NO_PROGRESS: ProgressByTopic = new Map()
 const loadNoProgress = () => Promise.resolve(NO_PROGRESS)
 
 // The last progress loaded, shown straight away on the next page while a
-// fresh copy loads, so moving between pages doesn't flash skeletons.
-let cached: { userId: string; progress: ProgressByTopic } | undefined
+// fresh copy loads, so moving between pages doesn't flash skeletons. It is
+// dropped once the learner saves a new attempt, so it never shows old numbers.
+let cached: { userId: string; revision: number; progress: ProgressByTopic } | undefined
 
 async function fetchProgress(userId: string): Promise<ProgressByTopic> {
+  // Count attempts that are still being saved, e.g. right after practice.
+  await attemptsSettled()
+  const revision = attemptsRevision()
   const { data, error, status } = await neon.from('my_topic_progress').select('*')
   if (error) throw new Error(dbErrorMessage(error, status))
   const progress = new Map((data as TopicProgressRow[]).map((row) => [row.topic_id, row]))
-  cached = { userId, progress }
+  cached = { userId, revision, progress }
   return progress
 }
+
+const cachedFor = (userId: string | null) =>
+  userId && cached?.userId === userId && cached.revision === attemptsRevision() ? cached.progress : undefined
 
 /**
  * The signed-in learner's progress per topic (my_topic_progress), keyed by
@@ -31,7 +39,7 @@ export function useTopicProgress(): AsyncResult<ProgressByTopic> & { signedIn: b
   const auth = useAuth()
   const userId = auth.status === 'signed-in' ? auth.user.id : null
   const load = useMemo(() => (userId ? () => fetchProgress(userId) : loadNoProgress), [userId])
-  const result = useAsync(load, userId && cached?.userId === userId ? cached.progress : undefined)
+  const result = useAsync(load, cachedFor(userId))
 
   if (auth.status === 'loading') return { ...LOADING, retry: result.retry, signedIn: false }
   return { ...result, signedIn: userId !== null }

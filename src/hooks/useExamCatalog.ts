@@ -83,7 +83,8 @@ async function fetchCatalog(): Promise<CatalogExam[]> {
 let cached: CatalogExam[] | undefined
 let pending: Promise<CatalogExam[]> | undefined
 
-function loadCatalog() {
+/** The catalog, fetched at most once per page load (outside React). */
+export function loadCatalog() {
   pending ??= fetchCatalog().then(
     (exams) => {
       cached = exams

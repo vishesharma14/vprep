@@ -62,15 +62,18 @@ db/
   seed.sql       Exams, subjects, topics, formulas, questions
 src/
   components/
-    ui/          Button, Card, Tag, Bubble (OMR-style option circle)
+    ui/          Button, Card, Tag, Bubble (OMR-style option circle), Notice,
+                 Disclosure (closed-by-default toggle), icons
     layout/      AppShell (sidebar on desktop, bottom tab bar on mobile),
                  PageHeader, nav config
-  pages/         One component per route (title only for now)
-  lib/           neon.ts (Neon Auth + Data API client), cx.ts (class-name helper)
+    practice/    QuestionScreen, OptionList, Summary, status labels and colours
+  pages/         One component per route
+  lib/           neon.ts (Neon Auth + Data API client), attempts.ts (attempt
+                 statuses and saving), cx.ts (class-name helper)
   types/         One interface per table, view and function result,
                  plus a union type for every CHECK constraint
   auth/          AuthProvider, useAuth, RequireAuth
-  hooks/         useExamCatalog, useTopicProgress, useAsync
+  hooks/         useExamCatalog, useTopicProgress, usePracticeSet, useAsync
   App.tsx        Router
   index.css      Tailwind import + design tokens
 ```
@@ -82,7 +85,7 @@ src/
 | `/`              | Home        |
 | `/exams`         | Exams       |
 | `/exams/:slug`   | ExamDetail  |
-| `/practice`      | Practice    |
+| `/practice`      | Practice: one of `?topic=<id>`, `?subject=<id>`, `?exam=<slug>`, `?ids=<id,id,…>`, `?q=<id>` |
 | `/test`          | TimedTest   |
 | `/result`        | Result      |
 | `/revision`      | Revision    |
