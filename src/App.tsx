@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { RequireAuth } from './auth/RequireAuth'
+import { SessionExpiredDialog } from './auth/SessionExpiredDialog'
 import { AppShell } from './components/layout/AppShell'
 import { Account } from './pages/Account'
 import { Admin } from './pages/Admin'
@@ -63,6 +64,7 @@ export default function App() {
   return (
     <AuthProvider>
       <RouterProvider router={router} />
+      <SessionExpiredDialog />
     </AuthProvider>
   )
 }

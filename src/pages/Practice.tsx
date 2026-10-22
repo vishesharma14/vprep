@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { signInHref } from '../auth/redirect'
 import { useAuth } from '../auth/useAuth'
@@ -47,6 +47,7 @@ function PracticeLoader({ scope }: { scope: PracticeScope }) {
 type SaveState = { status: 'saving' } | { status: 'saved' } | { status: 'failed'; error: string }
 
 function PracticeSession({ set, signedIn }: { set: PracticeSet; signedIn: boolean }) {
+  const { signInCount } = useAuth()
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
   const { questions, pool } = set
@@ -92,6 +93,14 @@ function PracticeSession({ set, signedIn }: { set: PracticeSet; signedIn: boolea
       if (saves[position]?.status === 'failed') save(position, result)
     })
   }
+
+  // Signing in again after the sign-in expired saves the answers that failed meanwhile.
+  const handledSignIns = useRef(signInCount)
+  useEffect(() => {
+    if (handledSignIns.current === signInCount) return
+    handledSignIns.current = signInCount
+    if (signedIn) retryFailed()
+  })
 
   // Retrying moves these back to "saving", which hides the notice until they settle.
   const failed = Object.values(saves).filter((s) => s.status === 'failed')

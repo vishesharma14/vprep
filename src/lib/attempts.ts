@@ -1,6 +1,7 @@
 import type { AttemptMode, AttemptStatus } from '../types'
-import { dbErrorMessage, NETWORK_ERROR } from './errors'
+import { dbErrorMessage, NETWORK_ERROR, SESSION_EXPIRED } from './errors'
 import { neon } from './neon'
+import { withSessionRecovery } from './session'
 
 /** "A" for 0, "B" for 1, … */
 export const optionLetter = (index: number) => String.fromCharCode(65 + index)
@@ -52,14 +53,9 @@ export function saveAttempt(attempt: NewAttempt): Promise<string | null> {
     time_spent_ms: Math.min(MAX_TIME_MS, Math.max(0, Math.round(attempt.time_spent_ms))),
   }
   revision++
-  const save = Promise.resolve(
-    neon
-      .from('attempts')
-      .insert(row)
-      .then(
-        ({ error, status }) => (error ? dbErrorMessage(error, status) : null),
-        () => NETWORK_ERROR,
-      ),
+  const save = withSessionRecovery(() => neon.from('attempts').insert(row)).then(
+    ({ error, status, expired }) => (error ? (expired ? SESSION_EXPIRED : dbErrorMessage(error, status)) : null),
+    () => NETWORK_ERROR,
   )
   saving.add(save)
   void save.then(() => saving.delete(save))

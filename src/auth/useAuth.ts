@@ -46,11 +46,17 @@ export type AuthState =
  * ready to show to the learner. refreshProfile reports through profileError.
  */
 export type AuthContextValue = AuthState & {
+  /** Signed in, but the database no longer accepts it, even with a new JWT: sign in again. */
+  sessionExpired: boolean
+  /** Goes up after each sign-in, so pages can retry what failed while the sign-in had expired. */
+  signInCount: number
   signUp: (input: SignUpInput) => Promise<SignUpResult>
   signIn: (input: SignInInput) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (changes: ProfileChanges) => Promise<void>
   refreshProfile: () => Promise<void>
+  /** Hides the "sign-in has expired" dialog until a request is rejected again. */
+  dismissSessionExpired: () => void
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)
