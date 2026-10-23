@@ -2,14 +2,14 @@ import { useId, useRef, useState, type ChangeEvent, type FormEvent, type Keyboar
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { safeNext } from '../auth/redirect'
 import { useAuth } from '../auth/useAuth'
+import { RegionSelect } from '../components/account/RegionSelect'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
-import { SelectField, TextField } from '../components/ui/Field'
+import { TextField } from '../components/ui/Field'
 import { Notice } from '../components/ui/Notice'
 import { Tag } from '../components/ui/Tag'
 import { cx } from '../lib/cx'
-import { STATES, UNION_TERRITORIES } from '../lib/regions'
 import type { Profile } from '../types'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -292,46 +292,16 @@ function SignUpForm({
         hint={`At least ${MIN_PASSWORD} characters.`}
         error={errors.password}
       />
-      <RegionSelect value={region} onChange={(e) => setRegion(e.target.value)} />
+      <RegionSelect
+        value={region}
+        onChange={(e) => setRegion(e.target.value)}
+        optional
+        hint="Used for state leaderboards."
+      />
       <Button type="submit" disabled={busy}>
         {busy ? 'Creating account…' : 'Create account'}
       </Button>
     </form>
-  )
-}
-
-function RegionSelect({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (e: ChangeEvent<HTMLSelectElement>) => void
-}) {
-  return (
-    <SelectField
-      label="State / UT"
-      name="state"
-      optional
-      value={value}
-      onChange={onChange}
-      hint="Used for state leaderboards."
-    >
-      <option value="">Not selected</option>
-      <optgroup label="States">
-        {STATES.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </optgroup>
-      <optgroup label="Union territories">
-        {UNION_TERRITORIES.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </optgroup>
-    </SelectField>
   )
 }
 
@@ -432,7 +402,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
         onChange={bind(setFullName)}
         error={errors.fullName}
       />
-      <RegionSelect value={region} onChange={bind(setRegion)} />
+      <RegionSelect value={region} onChange={bind(setRegion)} optional hint="Used for state leaderboards." />
       <TextField
         label="Daily goal"
         type="number"

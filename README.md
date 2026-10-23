@@ -95,7 +95,7 @@ src/
 | `/revision`      | Revision: bookmarks, or `?tab=mistakes` |
 | `/formulas`      | Formulas    |
 | `/progress`      | Progress    |
-| `/leaderboard`   | Leaderboard |
+| `/leaderboard`   | Leaderboard: Global, or `?scope=country` / `?scope=state` |
 | `/search`        | Search      |
 | `/admin`         | Admin       |
 | `/account`       | Account     |
