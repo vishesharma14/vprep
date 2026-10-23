@@ -31,8 +31,7 @@ export function AdminOverview({ exams, questions }: AdminOverviewProps) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap gap-3">
         <ButtonLink to={{ search: '?tab=edit' }}>Add question</ButtonLink>
-        {/* Reports get their own tab in the next step; until then, the most reported questions. */}
-        <ButtonLink to={{ search: '?tab=questions&sort=reports' }} variant="secondary">
+        <ButtonLink to={{ search: '?tab=reports' }} variant="secondary">
           Review reports ({openReports})
         </ButtonLink>
       </div>

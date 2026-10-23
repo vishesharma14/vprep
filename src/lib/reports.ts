@@ -15,6 +15,8 @@ export const REPORT_REASONS: Array<{ value: ReportReason; label: string }> = [
   { value: 'other', label: 'Something else' },
 ]
 
+export const reasonLabel = (reason: ReportReason) => REPORT_REASONS.find((r) => r.value === reason)?.label ?? reason
+
 /** What the app sends; user_id, status and created_at are set by the database. */
 export interface NewReport {
   question_id: string

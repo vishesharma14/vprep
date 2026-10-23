@@ -324,6 +324,26 @@ export interface AdminQuestionStats {
   open_reports: number
 }
 
+/**
+ * A row returned by admin_users() (admins only): every learner, newest first.
+ * bigints, returned as numbers.
+ */
+export interface AdminUserRow {
+  id: string
+  full_name: string
+  email: string
+  state: string | null
+  country: string
+  role: Role
+  is_suspended: boolean
+  created_at: string
+  attempts: number
+  /** Leaderboard points, from published questions. */
+  points: number
+  /** The latest attempt; null before the first. */
+  last_active: string | null
+}
+
 /** A row returned by get_leaderboard(). */
 export interface LeaderboardRow {
   /** bigint, returned by the Data API as a number. Ties share a rank. */

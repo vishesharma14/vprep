@@ -1,60 +1,79 @@
-import { lazy, Suspense } from 'react'
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { lazy, Suspense, type ComponentType } from 'react'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { RequireAuth } from './auth/RequireAuth'
 import { SessionExpiredDialog } from './auth/SessionExpiredDialog'
 import { AppShell } from './components/layout/AppShell'
+import { ErrorBoundary, RouteCrashed } from './components/layout/ErrorBoundary'
 import { PageHeader } from './components/layout/PageHeader'
 import { LoadError } from './components/ui/LoadError'
 import { LoadingLabel, Skeleton } from './components/ui/Skeleton'
-import { Account } from './pages/Account'
-import { ExamDetail } from './pages/ExamDetail'
-import { Exams } from './pages/Exams'
-import { Formulas } from './pages/Formulas'
 import { Home } from './pages/Home'
-import { Leaderboard } from './pages/Leaderboard'
-import { Practice } from './pages/Practice'
-import { Progress } from './pages/Progress'
-import { Result } from './pages/Result'
-import { Revision } from './pages/Revision'
-import { Search } from './pages/Search'
-import { TimedTest } from './pages/TimedTest'
 
-// Admins only, so it is downloaded the first time an admin opens it, never by
-// learners. If the download fails, Retry reloads the page to try again.
-const Admin = lazy(() =>
-  import('./pages/Admin').then(
-    (module) => ({ default: module.Admin }),
-    () => ({ default: AdminLoadFailed }),
-  ),
-)
+/**
+ * A page whose code is downloaded the first time it is opened, so a first
+ * visit only loads Home. `title` is the page's heading, shown while the code
+ * downloads; leave it out for pages whose heading isn't fixed. If the download
+ * fails (offline, or a new deploy replaced the file), Retry reloads the app.
+ */
+function lazyPage(load: () => Promise<ComponentType>, title?: string) {
+  const Page = lazy(() =>
+    load().then(
+      (Component) => ({ default: Component }),
+      (): { default: ComponentType } => ({ default: () => <PageLoadFailed title={title} /> }),
+    ),
+  )
+  return function LazyPage() {
+    return (
+      <Suspense fallback={<PageLoading title={title} />}>
+        <Page />
+      </Suspense>
+    )
+  }
+}
 
-function AdminLoading() {
+function PageLoading({ title }: { title?: string }) {
   return (
     <>
-      <PageHeader title="Admin" />
-      <LoadingLabel>Loading the admin panel…</LoadingLabel>
+      {title ? <PageHeader title={title} /> : <Skeleton className="mb-6 h-9 w-56 max-w-full md:h-10" />}
+      <LoadingLabel>Loading the page…</LoadingLabel>
       <Skeleton className="h-11 sm:max-w-lg" />
       <Skeleton className="mt-6 h-64" />
     </>
   )
 }
 
-function AdminLoadFailed() {
+function PageLoadFailed({ title }: { title?: string }) {
   return (
     <>
-      <PageHeader title="Admin" />
+      {title && <PageHeader title={title} />}
       <LoadError
-        message="Couldn't load the admin panel. Check your internet connection and try again."
+        message="Couldn't load this page. Check your internet connection and try again."
         onRetry={() => window.location.reload()}
       />
     </>
   )
 }
 
+const Account = lazyPage(() => import('./pages/Account').then((m) => m.Account), 'Account')
+// Admins only, so learners never download it.
+const Admin = lazyPage(() => import('./pages/Admin').then((m) => m.Admin), 'Admin')
+const ExamDetail = lazyPage(() => import('./pages/ExamDetail').then((m) => m.ExamDetail))
+const Exams = lazyPage(() => import('./pages/Exams').then((m) => m.Exams), 'Exams')
+const Formulas = lazyPage(() => import('./pages/Formulas').then((m) => m.Formulas), 'Formulas')
+const Leaderboard = lazyPage(() => import('./pages/Leaderboard').then((m) => m.Leaderboard), 'Leaderboard')
+const NotFound = lazyPage(() => import('./pages/NotFound').then((m) => m.NotFound), 'Page not found')
+const Practice = lazyPage(() => import('./pages/Practice').then((m) => m.Practice))
+const Progress = lazyPage(() => import('./pages/Progress').then((m) => m.Progress), 'Progress')
+const Result = lazyPage(() => import('./pages/Result').then((m) => m.Result), 'Result')
+const Revision = lazyPage(() => import('./pages/Revision').then((m) => m.Revision), 'Revision')
+const Search = lazyPage(() => import('./pages/Search').then((m) => m.Search), 'Search')
+const TimedTest = lazyPage(() => import('./pages/TimedTest').then((m) => m.TimedTest))
+
 const router = createBrowserRouter([
   {
     element: <AppShell />,
+    errorElement: <RouteCrashed />,
     children: [
       { index: true, element: <Home /> },
       { path: 'exams', element: <Exams /> },
@@ -85,23 +104,23 @@ const router = createBrowserRouter([
         path: 'admin',
         element: (
           <RequireAuth title="Admin" admin>
-            <Suspense fallback={<AdminLoading />}>
-              <Admin />
-            </Suspense>
+            <Admin />
           </RequireAuth>
         ),
       },
       { path: 'account', element: <Account /> },
-      { path: '*', element: <Navigate to="/" replace /> },
+      { path: '*', element: <NotFound /> },
     ],
   },
 ])
 
 export default function App() {
   return (
-    <AuthProvider>
-      <RouterProvider router={router} />
-      <SessionExpiredDialog />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <RouterProvider router={router} />
+        <SessionExpiredDialog />
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }

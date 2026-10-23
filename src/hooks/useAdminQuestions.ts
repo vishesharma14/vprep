@@ -1,9 +1,10 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import { adminRejected, adminWrite } from '../lib/admin'
 import { contentChanged } from '../lib/content'
 import { dbErrorMessage, NETWORK_ERROR, SESSION_EXPIRED } from '../lib/errors'
 import { neon } from '../lib/neon'
 import { questionSaveError, type QuestionInput } from '../lib/questions'
-import { isAuthRejected, withSessionRecovery } from '../lib/session'
+import { withSessionRecovery } from '../lib/session'
 import type { AdminQuestionStats, Question, QuestionStatus } from '../types'
 import { LOADING, type AsyncResult, type AsyncState } from './useAsync'
 
@@ -23,13 +24,6 @@ const statsOf = ({ attempts, learners, answered, correct, revealed, skipped, ope
   skipped,
   open_reports,
 })
-
-/**
- * Admin-only requests are also turned down when the token isn't the admin's
- * (is_admin() is false), which a new JWT may fix.
- */
-const adminRejected = (error: { code?: string; message?: string } | null, status: number) =>
-  isAuthRejected(error, status) || !!error?.message?.includes('Admins only')
 
 async function fetchAdminQuestions(): Promise<AdminQuestion[]> {
   // Stats first: it checks the user is an admin (getting a new JWT if needed),
@@ -93,10 +87,15 @@ function load() {
   return loading
 }
 
-function update(change: (rows: AdminQuestion[]) => AdminQuestion[]) {
+/** Changes the loaded rows, e.g. a report count, without marking the content as changed. */
+function patch(change: (rows: AdminQuestion[]) => AdminQuestion[]) {
   changes++
-  contentChanged()
   if (state.status === 'ready') setState({ ...state, data: change(state.data) })
+}
+
+function update(change: (rows: AdminQuestion[]) => AdminQuestion[]) {
+  contentChanged()
+  patch(change)
 }
 
 /** Puts a saved question in the store, keeping its stats. */
@@ -124,15 +123,7 @@ export function useAdminQuestions(): AsyncResult<AdminQuestion[]> {
 export type SaveResult = { question: Question; error?: undefined } | { question?: undefined; error: string }
 
 /** What a write came back with: the changed rows, or an error message. */
-async function write(request: () => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null; status: number }>) {
-  try {
-    const { data, error, status, expired } = await withSessionRecovery(request)
-    if (error) return { error: expired ? SESSION_EXPIRED : (questionSaveError(error) ?? dbErrorMessage(error, status)) }
-    return { rows: data as Question[] }
-  } catch {
-    return { error: NETWORK_ERROR }
-  }
-}
+const write = (request: Parameters<typeof adminWrite>[0]) => adminWrite<Question>(request, questionSaveError)
 
 // Row-level security hides a question from a token that isn't the admin's,
 // so an update or delete that matched nothing says so.
@@ -185,4 +176,16 @@ export async function deleteQuestion(id: string): Promise<DeleteResult> {
   }
   update((rows) => rows.filter((row) => row.id !== id))
   return { error: null }
+}
+
+/** A report on the question was resolved or dismissed: one fewer is open. */
+export function reportClosed(questionId: string) {
+  patch((rows) =>
+    rows.map((row) => (row.id === questionId ? { ...row, open_reports: Math.max(0, row.open_reports - 1) } : row)),
+  )
+}
+
+/** A formula was deleted, which the database unlinks from its questions. */
+export function formulaDeleted(formulaId: string) {
+  update((rows) => rows.map((row) => (row.formula_id === formulaId ? { ...row, formula_id: null } : row)))
 }

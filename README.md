@@ -21,7 +21,18 @@ Do this once per Neon project, in the [Neon Console](https://console.neon.tech),
 2. **Enable the Data API.** Open **Data API**, tick **Use Neon Auth**, and click **Enable Data API**.
 3. **Create the schema.** Open the **SQL Editor**, paste in all of [`db/migrations/0001_schema.sql`](db/migrations/0001_schema.sql) and run it. It creates the tables, Row Level Security policies, views and functions in one transaction, so if it fails nothing is created and you can run it again after fixing the problem.
 4. **Load the seed data.** In the SQL Editor, run all of [`db/seed.sql`](db/seed.sql). It adds 7 exams with their subjects and topics, 27 formulas and 54 published questions. Run it only once: a second run fails on duplicate slugs and changes nothing.
-5. **Add the catalog views.** In the SQL Editor, run all of [`db/migrations/0002_catalog_views.sql`](db/migrations/0002_catalog_views.sql). It adds the read-only `topic_catalog` and `my_topic_progress` views that the Home and Exams pages read.
+5. **Run migrations 0002–0007.** In the SQL Editor, run each file below in full, once, in this order:
+
+   | Migration | What it adds |
+   | --------- | ------------ |
+   | [`0002_catalog_views.sql`](db/migrations/0002_catalog_views.sql) | `topic_catalog` and `my_topic_progress` views, read by Home and Exams |
+   | [`0003_auth_debug.sql`](db/migrations/0003_auth_debug.sql) | `auth_debug()`, which the app calls to log why the database rejected a signed-in request |
+   | [`0004_fix_current_user_id.sql`](db/migrations/0004_fix_current_user_id.sql) | A fix so `current_user_id()` reliably sees the signed-in user |
+   | [`0005_my_progress.sql`](db/migrations/0005_my_progress.sql) | `my_progress()`, for the Progress page and Home |
+   | [`0006_search_formulas.sql`](db/migrations/0006_search_formulas.sql) | `search_questions()`, the `formula_catalog` view, and a leaderboard fix |
+   | [`0007_admin.sql`](db/migrations/0007_admin.sql) | `admin_users()` and `admin_question_stats()` for the admin panel, and a block on deleting questions that have attempts |
+
+The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0007`.
 
 ### 2. Run the app
 
@@ -44,6 +55,19 @@ If everything is set up, the Home page lists five goals (Government, Engineering
 
 `src/lib/neon.ts` throws a clear error at startup if either variable is missing.
 
+### 3. Deploy to Vercel
+
+1. **Import the repo** in Vercel. It detects Vite: the build command is `npm run build` and the output directory is `dist`.
+2. **Set the environment variables.** In the project's **Settings -> Environment Variables**, add `VITE_NEON_AUTH_URL` and `VITE_NEON_DATA_API_URL`, with the same values as in `.env`. Vite writes them into the bundle at build time, so after adding or changing one, redeploy. If either is missing, the deployed site is a blank page and the browser console shows the error from `src/lib/neon.ts`.
+3. **Allow the domain in Neon Auth.** In the Neon Console, open **Auth -> Configuration -> Domains** and add the Vercel domain (for example `https://vprep.vercel.app`). Until you do, sign-in and sign-up fail on the deployed site. Preview deployments have their own URLs; add those too if you want to sign in on them.
+
+[`vercel.json`](vercel.json) does two things:
+
+- **Deep links work.** Every path outside `/assets/` is served `index.html`, so opening `/exams/ssc-cgl` or `/admin?tab=users` directly (or reloading on it) loads the app, which then shows that page. Unknown paths show the app's Page not found page.
+- **Built files are cached for a year.** Files in `/assets/` have a content hash in their name, so they get `Cache-Control: public, max-age=31536000, immutable`. `index.html` keeps Vercel's default (revalidate on every visit), so a new deploy shows up on the next page load.
+
+If a learner has the site open during a deploy and opens a page that hasn't loaded yet, its old file may be gone; the page shows "Couldn't load this page" and Retry reloads the app.
+
 ## Scripts
 
 | Command           | What it does                         |
@@ -59,6 +83,9 @@ If everything is set up, the Home page lists five goals (Government, Engineering
 db/
   migrations/    0001_schema.sql (tables, RLS, views, functions)
                  0002_catalog_views.sql (topic_catalog, my_topic_progress)
+                 0003_auth_debug.sql, 0004_fix_current_user_id.sql
+                 0005_my_progress.sql, 0006_search_formulas.sql
+                 0007_admin.sql
   seed.sql       Exams, subjects, topics, formulas, questions
 src/
   components/
@@ -66,10 +93,13 @@ src/
                  Disclosure (closed-by-default toggle), Tabs, FilterChips,
                  form fields, icons
     layout/      AppShell (sidebar on desktop, bottom tab bar on mobile),
-                 PageHeader, nav config
+                 PageHeader, nav config, ErrorBoundary ("Something went
+                 wrong" screen)
     practice/    QuestionScreen, OptionList, Summary, status labels and colours,
                  BookmarkButton, ReportProblem (report form)
-    admin/       AdminOverview, QuestionList, QuestionEditor, QuestionPreview
+    admin/       AdminOverview, QuestionList, QuestionEditor, QuestionPreview,
+                 TaxonomyTree (exams > subjects > topics), FormulaManager,
+                 ReportList, UserList, ScrollTable (table with pinned actions)
   pages/         One component per route
   lib/           neon.ts (Neon Auth + Data API client), attempts.ts (attempt
                  statuses and saving), reports.ts (report reasons and
@@ -79,8 +109,9 @@ src/
   auth/          AuthProvider, useAuth, RequireAuth
   hooks/         useExamCatalog, useTopicProgress, usePracticeSet, useAsync,
                  useBookmarks (shared bookmark store, optimistic updates)
-  App.tsx        Router
+  App.tsx        Router; every page except Home is loaded on demand
   index.css      Tailwind import + design tokens
+vercel.json      SPA rewrite and cache headers for Vercel
 ```
 
 ## Routes
@@ -98,10 +129,10 @@ src/
 | `/progress`      | Progress    |
 | `/leaderboard`   | Leaderboard: Global, or `?scope=country` / `?scope=state` |
 | `/search`        | Search      |
-| `/admin`         | Admin (admins only, loaded on demand): `?tab=overview`, `?tab=questions` (with `q`, `exam`, `status`, `sort`), `?tab=edit` for a new question or `?tab=edit&id=<id>` |
+| `/admin`         | Admin (admins only, loaded on demand): `?tab=overview`, `?tab=questions` (with `q`, `exam`, `status`, `sort`), `?tab=edit` for a new question or `?tab=edit&id=<id>`, `?tab=taxonomy` (exams and topics), `?tab=formulas`, `?tab=reports`, `?tab=users` |
 | `/account`       | Account     |
 
-Unknown paths redirect to `/`.
+Any other path shows Page not found.
 
 ## Design tokens
 

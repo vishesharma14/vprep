@@ -5,9 +5,8 @@ import { saveQuestion, type AdminQuestion } from '../../hooks/useAdminQuestions'
 import { findTopic, type CatalogExam } from '../../hooks/useExamCatalog'
 import { optionLetter } from '../../lib/attempts'
 import { cx } from '../../lib/cx'
-import { dbErrorMessage, SESSION_EXPIRED } from '../../lib/errors'
 import { plural } from '../../lib/format'
-import { neon } from '../../lib/neon'
+import { fetchFormulas } from '../../lib/formulas'
 import {
   blankOptions,
   MAX_OPTIONS,
@@ -19,7 +18,6 @@ import {
   YEAR_MIN,
   type QuestionForm,
 } from '../../lib/questions'
-import { withSessionRecovery } from '../../lib/session'
 import type { Difficulty, Formula, Question, QuestionStatus, QuestionType } from '../../types'
 import { Bubble } from '../ui/Bubble'
 import { Button, ButtonLink } from '../ui/Button'
@@ -66,14 +64,6 @@ const DEFAULT_LIST = '?tab=questions'
 function listSearchOf(state: unknown) {
   const list = (state as { list?: unknown } | null)?.list
   return typeof list === 'string' && list.startsWith('?tab=questions') ? list : DEFAULT_LIST
-}
-
-async function fetchFormulas() {
-  const { data, error, status, expired } = await withSessionRecovery(() =>
-    neon.from('formulas').select('*').order('group_name').order('name'),
-  )
-  if (error) throw new Error(expired ? SESSION_EXPIRED : dbErrorMessage(error, status))
-  return data as Formula[]
 }
 
 /** Formulas by group, in the order given. */

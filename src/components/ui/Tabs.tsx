@@ -8,11 +8,13 @@ interface TabsProps<T extends string> {
   tabs: Array<{ id: T; label: ReactNode }>
   selected: T
   onSelect: (tab: T) => void
+  /** Each tab as wide as its label, wrapping onto more rows when they don't fit, rather than one row of equal tabs. */
+  wrap?: boolean
   className?: string
 }
 
 /** A row of tabs (WAI-ARIA tabs pattern): left and right arrows move between them. */
-export function Tabs<T extends string>({ id, label, tabs, selected, onSelect, className }: TabsProps<T>) {
+export function Tabs<T extends string>({ id, label, tabs, selected, onSelect, wrap = false, className }: TabsProps<T>) {
   const refs = useRef<Partial<Record<T, HTMLButtonElement | null>>>({})
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
@@ -29,7 +31,11 @@ export function Tabs<T extends string>({ id, label, tabs, selected, onSelect, cl
     <div
       role="tablist"
       aria-label={label}
-      className={cx('grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-ink/5 p-1', className)}
+      className={cx(
+        wrap ? 'flex flex-wrap' : 'grid auto-cols-fr grid-flow-col',
+        'gap-1 rounded-lg bg-ink/5 p-1',
+        className,
+      )}
     >
       {tabs.map((t) => {
         const isSelected = t.id === selected
@@ -49,6 +55,7 @@ export function Tabs<T extends string>({ id, label, tabs, selected, onSelect, cl
             onKeyDown={onKeyDown}
             className={cx(
               'rounded-md px-3 py-2 text-sm font-bold transition-colors',
+              wrap && 'grow whitespace-nowrap',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pen',
               isSelected ? 'bg-sheet text-pen shadow-sm' : 'text-ink/70 hover:text-ink',
             )}

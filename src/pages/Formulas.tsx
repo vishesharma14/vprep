@@ -9,50 +9,18 @@ import { LoadingLabel, Skeleton } from '../components/ui/Skeleton'
 import { useAsync } from '../hooks/useAsync'
 import { dbErrorMessage, SESSION_EXPIRED } from '../lib/errors'
 import { plural } from '../lib/format'
+import { groupFormulas, type FormulaGroup } from '../lib/formulas'
 import { neon } from '../lib/neon'
 import { matchesEveryWord, searchWords } from '../lib/search'
 import { withSessionRecovery } from '../lib/session'
 import type { FormulaCatalogRow } from '../types'
 
-/** Groups in this order; any others follow, A to Z. */
-const GROUP_ORDER = [
-  'Arithmetic',
-  'Algebra & Calculus',
-  'Trigonometry & Logs',
-  'Physics',
-  'Chemistry',
-  'Computer Science',
-  'Probability & Statistics',
-]
-
-const byName = new Intl.Collator('en', { numeric: true }).compare
-
 const gridClass = 'grid gap-4 sm:grid-cols-2'
-
-interface FormulaGroup {
-  name: string
-  formulas: FormulaCatalogRow[]
-}
 
 async function fetchFormulas() {
   const { data, error, status, expired } = await withSessionRecovery(() => neon.from('formula_catalog').select('*'))
   if (error) throw new Error(expired ? SESSION_EXPIRED : dbErrorMessage(error, status))
   return data as FormulaCatalogRow[]
-}
-
-/** Formulas by group (in GROUP_ORDER), each group A to Z. */
-function groupFormulas(formulas: FormulaCatalogRow[]): FormulaGroup[] {
-  const groups = new Map<string, FormulaCatalogRow[]>()
-  for (const formula of [...formulas].sort((a, b) => byName(a.name, b.name))) {
-    groups.set(formula.group_name, [...(groups.get(formula.group_name) ?? []), formula])
-  }
-  const rank = (group: string) => {
-    const index = GROUP_ORDER.indexOf(group)
-    return index === -1 ? GROUP_ORDER.length : index
-  }
-  return [...groups]
-    .sort(([a], [b]) => rank(a) - rank(b) || byName(a, b))
-    .map(([name, formulas]) => ({ name, formulas }))
 }
 
 export function Formulas() {
@@ -127,7 +95,7 @@ function FormulaLibrary({ formulas, filter }: { formulas: FormulaCatalogRow[]; f
   )
 }
 
-function FormulaSection({ group }: { group: FormulaGroup }) {
+function FormulaSection({ group }: { group: FormulaGroup<FormulaCatalogRow> }) {
   const headingId = useId()
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-4">

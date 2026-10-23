@@ -14,7 +14,9 @@ import { Card } from '../ui/Card'
 import { SelectField, TextField } from '../ui/Field'
 import { Notice } from '../ui/Notice'
 import { LoadingLabel, Skeleton } from '../ui/Skeleton'
+import { ScrollTable } from './ScrollTable'
 import { StatusPill } from './StatusPill'
+import { cellClass, headClass, labelClass, pinnedClass, pinnedHeadClass, pinnedHighlightClass } from './table'
 
 type Sort = 'code' | 'reports' | 'accuracy'
 
@@ -45,12 +47,6 @@ const compare: Record<Sort, (a: AdminQuestion, b: AdminQuestion) => number> = {
   // Ties go to the question with more answers: its accuracy is surer.
   accuracy: (a, b) => ratio(a) - ratio(b) || b.answered - a.answered || byCode(a.code, b.code),
 }
-
-const labelClass = 'font-mono text-[0.6875rem] font-medium uppercase tracking-widest text-drop'
-
-// The outer cells line up with the card's padding.
-const cellClass = 'px-3 py-3 align-top first:pl-5 last:pr-5'
-const headClass = cx(cellClass, 'sticky top-0 z-[1] bg-sheet font-medium')
 
 /** What the editor hands back after a save: a message, and the question to point out. */
 export interface SavedNotice {
@@ -239,66 +235,52 @@ interface QuestionTableProps {
 }
 
 function QuestionTable({ rows, places, highlight, listSearch, onNotice }: QuestionTableProps) {
-  const captionId = useId()
   return (
-    <Card className="overflow-hidden px-0 py-0">
-      {/* Scrolls both ways inside the card; focusable so the keyboard can scroll it too. */}
-      <div
-        role="region"
-        aria-labelledby={captionId}
-        tabIndex={0}
-        className="max-h-[70vh] overflow-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pen"
-      >
-        <table className="w-full min-w-[60rem] text-sm">
-          <caption id={captionId} className="sr-only">
-            Questions
-          </caption>
-          <thead>
-            <tr className={labelClass}>
-              <th scope="col" className={cx(headClass, 'text-left')}>
-                Code
-              </th>
-              <th scope="col" className={cx(headClass, 'text-left')}>
-                Question
-              </th>
-              <th scope="col" className={cx(headClass, 'text-left')}>
-                Exam · topic
-              </th>
-              <th scope="col" className={cx(headClass, 'text-left')}>
-                Difficulty
-              </th>
-              <th scope="col" className={cx(headClass, 'text-left')}>
-                Status
-              </th>
-              <th scope="col" className={cx(headClass, 'text-right')}>
-                Attempts
-              </th>
-              <th scope="col" className={cx(headClass, 'text-right')}>
-                Accuracy
-              </th>
-              <th scope="col" className={cx(headClass, 'text-right')}>
-                Reports
-              </th>
-              <th scope="col" className={cx(headClass, 'text-right')}>
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((q) => (
-              <QuestionRow
-                key={q.id}
-                question={q}
-                place={places.get(q.topic_id)}
-                highlighted={q.id === highlight}
-                listSearch={listSearch}
-                onNotice={onNotice}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    <ScrollTable caption="Questions" className="min-w-[60rem]">
+      <thead>
+        <tr className={labelClass}>
+          <th scope="col" className={cx(headClass, 'text-left')}>
+            Code
+          </th>
+          <th scope="col" className={cx(headClass, 'text-left')}>
+            Question
+          </th>
+          <th scope="col" className={cx(headClass, 'text-left')}>
+            Exam · topic
+          </th>
+          <th scope="col" className={cx(headClass, 'text-left')}>
+            Difficulty
+          </th>
+          <th scope="col" className={cx(headClass, 'text-left')}>
+            Status
+          </th>
+          <th scope="col" className={cx(headClass, 'text-right')}>
+            Attempts
+          </th>
+          <th scope="col" className={cx(headClass, 'text-right')}>
+            Accuracy
+          </th>
+          <th scope="col" className={cx(headClass, 'text-right')}>
+            Reports
+          </th>
+          <th scope="col" className={cx(pinnedHeadClass, 'text-right')}>
+            <span className="sr-only">Actions</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((q) => (
+          <QuestionRow
+            key={q.id}
+            question={q}
+            place={places.get(q.topic_id)}
+            highlighted={q.id === highlight}
+            listSearch={listSearch}
+            onNotice={onNotice}
+          />
+        ))}
+      </tbody>
+    </ScrollTable>
   )
 }
 
@@ -405,10 +387,11 @@ function QuestionRow({ question, place, highlighted, listSearch, onNotice }: Que
       >
         {question.open_reports}
       </td>
-      <td className={cx(cellClass, 'text-right')}>
+      {/* Pinned, so the actions stay in view however far the table scrolls. */}
+      <td className={cx(cellClass, pinnedClass, highlighted ? pinnedHighlightClass : 'bg-sheet', 'text-right')}>
         <div ref={actionsRef}>
           {row.kind === 'confirm' ? (
-            <div role="group" aria-label={`Delete ${code}?`} className="ml-auto flex w-60 flex-col items-end gap-2">
+            <div role="group" aria-label={`Delete ${code}?`} className="ml-auto flex w-44 flex-col items-end gap-2 sm:w-60">
               <p className="text-left">Delete {code}? This can't be undone.</p>
               <div className="flex gap-2">
                 <Button size="sm" variant="secondary" autoFocus onClick={() => cancel()}>
@@ -420,7 +403,7 @@ function QuestionRow({ question, place, highlighted, listSearch, onNotice }: Que
               </div>
             </div>
           ) : row.kind === 'error' ? (
-            <div className="ml-auto flex w-64 flex-col items-end gap-2">
+            <div className="ml-auto flex w-44 flex-col items-end gap-2 sm:w-64">
               <div role="alert" className="flex flex-col gap-1 text-left">
                 <p className="text-bad">{row.message}</p>
                 {row.refused && !published && (
@@ -444,8 +427,9 @@ function QuestionRow({ question, place, highlighted, listSearch, onNotice }: Que
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex justify-end gap-1.5">
+            // Stacked on narrow screens, so the pinned column leaves room for the rest.
+            <div className="ml-auto flex w-28 flex-col gap-1 sm:w-auto sm:items-end">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:justify-end">
                 <ButtonLink
                   to={{ search: `?tab=edit&id=${question.id}` }}
                   state={{ list: listSearch }}
