@@ -3,6 +3,11 @@ export function plural(count: number, one: string, many = `${one}s`) {
   return `${count} ${count === 1 ? one : many}`
 }
 
+/** The body up to its first line break. */
+export function firstLine(body: string) {
+  return body.trim().split('\n', 1)[0]
+}
+
 /** Countdown time: "04:05", and "75:00" past an hour. Rounds up, so "00:00" means time is up. */
 export function formatClock(ms: number) {
   const total = Math.max(0, Math.ceil(ms / 1000))

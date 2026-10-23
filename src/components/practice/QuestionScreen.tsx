@@ -12,6 +12,7 @@ import { CheckIcon, CrossIcon, EyeIcon } from '../ui/Icon'
 import { ProgressBar } from '../ui/ProgressBar'
 import { Tag } from '../ui/Tag'
 import { BookmarkButton, BookmarkMessage } from './BookmarkButton'
+import { FormulaExpression } from './FormulaExpression'
 import { OptionList } from './OptionList'
 import { ReportButton, ReportForm } from './ReportProblem'
 import { STATUS_LABEL } from './status'
@@ -295,9 +296,7 @@ export function QuestionScreen({
               {question.formula && (
                 <Disclosure title="Formula">
                   <p className="font-bold">{question.formula.name}</p>
-                  <p className="mt-2 break-words rounded-lg border-l-4 border-drop bg-drop/5 px-4 py-3 font-mono">
-                    {question.formula.expression}
-                  </p>
+                  <FormulaExpression expression={question.formula.expression} className="mt-2" />
                   {question.formula.note && <p className="mt-2 text-sm text-ink/70">{question.formula.note}</p>}
                 </Disclosure>
               )}

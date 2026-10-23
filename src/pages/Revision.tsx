@@ -2,6 +2,7 @@ import { useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { PageHeader } from '../components/layout/PageHeader'
+import { QuestionCard } from '../components/practice/QuestionCard'
 import { Button, ButtonLink } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { TextField } from '../components/ui/Field'
@@ -10,14 +11,13 @@ import { LoadError } from '../components/ui/LoadError'
 import { Notice } from '../components/ui/Notice'
 import { LoadingLabel, Skeleton } from '../components/ui/Skeleton'
 import { TabPanel, Tabs } from '../components/ui/Tabs'
-import { Tag } from '../components/ui/Tag'
 import { useAsync } from '../hooks/useAsync'
 import { LIST_NAME_MAX, listNameError, loadBookmarks, useBookmarks } from '../hooks/useBookmarks'
 import { findTopic, loadCatalog } from '../hooks/useExamCatalog'
 import { attemptsSettled } from '../lib/attempts'
 import { cx } from '../lib/cx'
 import { dbErrorMessage, SESSION_EXPIRED } from '../lib/errors'
-import { formatDate } from '../lib/format'
+import { firstLine, formatDate } from '../lib/format'
 import { neon } from '../lib/neon'
 import { withSessionRecovery } from '../lib/session'
 import type { Bookmark, BookmarkList, Exam, MistakeRow, Question, Topic } from '../types'
@@ -300,7 +300,7 @@ function BookmarksPanel({ saved, panelId }: { saved: SavedQuestion[]; panelId: s
           >
             {shown.map((item, i) => (
               <li key={item.question.id}>
-                <QuestionCard question={item.question}>
+                <RevisionCard question={item.question}>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="flex min-w-0 items-center gap-2 text-sm">
                       <span className="text-ink/60">
@@ -342,7 +342,7 @@ function BookmarksPanel({ saved, panelId }: { saved: SavedQuestion[]; panelId: s
                       </Button>
                     </div>
                   </div>
-                </QuestionCard>
+                </RevisionCard>
               </li>
             ))}
           </ul>
@@ -460,7 +460,7 @@ function MistakesPanel({ open, cleared }: { open: MistakeItem[]; cleared: Mistak
           <ul aria-label={showCleared ? 'Cleared mistakes' : 'Open mistakes'} className="flex flex-col gap-3">
             {items.map(({ mistake, question }) => (
               <li key={question.id}>
-                <QuestionCard question={question}>
+                <RevisionCard question={question}>
                   {mistake.cleared_at ? (
                     <p className="text-sm text-ok">
                       Cleared <time dateTime={mistake.cleared_at}>{formatDate(mistake.cleared_at)}</time>
@@ -480,7 +480,7 @@ function MistakesPanel({ open, cleared }: { open: MistakeItem[]; cleared: Mistak
                       </ButtonLink>
                     </div>
                   )}
-                </QuestionCard>
+                </RevisionCard>
               </li>
             ))}
           </ul>
@@ -490,29 +490,17 @@ function MistakesPanel({ open, cleared }: { open: MistakeItem[]; cleared: Mistak
   )
 }
 
-/** The body up to its first line break. */
-const firstLine = (body: string) => body.trim().split('\n', 1)[0]
-
-function QuestionCard({ question, children }: { question: RevisionQuestion; children: ReactNode }) {
+function RevisionCard({ question, children }: { question: RevisionQuestion; children: ReactNode }) {
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="font-mono text-xs text-ink/60">{question.code}</span>
-        <ul aria-label="About this question" className="flex flex-wrap gap-1.5">
-          <li>
-            <Tag>{question.exam.name}</Tag>
-          </li>
-          <li>
-            <Tag tone="ink">{question.topic.name}</Tag>
-          </li>
-          <li>
-            <Tag tone="ink">{question.difficulty}</Tag>
-          </li>
-        </ul>
-      </div>
-      <p className="line-clamp-2 break-words">{firstLine(question.body)}</p>
+    <QuestionCard
+      code={question.code}
+      exam={question.exam.name}
+      topic={question.topic.name}
+      difficulty={question.difficulty}
+      preview={firstLine(question.body)}
+    >
       {children}
-    </Card>
+    </QuestionCard>
   )
 }
 

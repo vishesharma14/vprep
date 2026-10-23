@@ -285,6 +285,27 @@ export interface MyProgress {
   topics: MyProgressTopic[]
 }
 
+/**
+ * A row returned by search_questions(): a published question with its place
+ * in the catalog. Rows come best match first, then by code.
+ */
+export interface SearchQuestionRow
+  extends Pick<Question, 'id' | 'code' | 'body' | 'difficulty' | 'type' | 'year' | 'subtopic' | 'tags' | 'topic_id'> {
+  topic_name: string
+  subject_name: string
+  exam_slug: string
+  exam_name: string
+  /** 0: the whole query is in the body; 1: in the subtopic, topic, subject or exam; 2: the words are spread out. */
+  match_rank: number
+}
+
+/** A row of the formula_catalog view. Counts published questions only. */
+export interface FormulaCatalogRow extends Omit<Formula, 'created_at'> {
+  question_count: number
+  /** The published questions that use the formula, by code; empty if none. */
+  question_ids: string[]
+}
+
 /** A row returned by get_leaderboard(). */
 export interface LeaderboardRow {
   /** bigint, returned by the Data API as a number. Ties share a rank. */
