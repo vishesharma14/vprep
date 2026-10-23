@@ -10,10 +10,10 @@ import { Card } from '../ui/Card'
 import { Disclosure } from '../ui/Disclosure'
 import { CheckIcon, CrossIcon, EyeIcon } from '../ui/Icon'
 import { ProgressBar } from '../ui/ProgressBar'
-import { Tag } from '../ui/Tag'
 import { BookmarkButton, BookmarkMessage } from './BookmarkButton'
 import { FormulaExpression } from './FormulaExpression'
 import { OptionList } from './OptionList'
+import { QuestionTags } from './QuestionTags'
 import { ReportButton, ReportForm } from './ReportProblem'
 import { STATUS_LABEL } from './status'
 
@@ -230,26 +230,7 @@ export function QuestionScreen({
             </div>
             <BookmarkMessage bookmark={bookmark} />
           </div>
-          <ul aria-label="About this question" className="flex flex-wrap gap-2">
-            {question.subtopic && (
-              <li>
-                <Tag>{question.subtopic}</Tag>
-              </li>
-            )}
-            <li>
-              <Tag tone="ink">{question.difficulty}</Tag>
-            </li>
-            {question.type === 'pyq' && question.year !== null && (
-              <li>
-                <Tag>PYQ {question.year}</Tag>
-              </li>
-            )}
-            {question.source && (
-              <li>
-                <Tag tone="ink">{question.source}</Tag>
-              </li>
-            )}
-          </ul>
+          <QuestionTags question={question} />
           {reporting && (
             <ReportForm id={reportFormId} questionId={question.id} code={question.code} onClose={closeReport} />
           )}

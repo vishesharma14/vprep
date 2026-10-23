@@ -1,3 +1,4 @@
+import { contentRevision } from '../lib/content'
 import { dbErrorMessage } from '../lib/errors'
 import { neon } from '../lib/neon'
 import type { Exam, Subject, Topic, TopicCatalogRow } from '../types'
@@ -78,34 +79,54 @@ async function fetchCatalog(): Promise<CatalogExam[]> {
   })
 }
 
-// The catalog rarely changes, so it is fetched once per page load and shared
-// by every page that needs it. After an error, retry() fetches again.
-let cached: CatalogExam[] | undefined
-let pending: Promise<CatalogExam[]> | undefined
+// The catalog rarely changes, so it is fetched once and shared by every page
+// that needs it, until an admin changes the content (contentRevision). After
+// an error, retry() fetches again.
+let cached: { revision: number; exams: CatalogExam[] } | undefined
+let pending: { revision: number; promise: Promise<CatalogExam[]> } | undefined
 
-/** The catalog, fetched at most once per page load (outside React). */
+/** The catalog, fetched once per content revision (outside React). */
 export function loadCatalog() {
-  pending ??= fetchCatalog().then(
-    (exams) => {
-      cached = exams
-      return exams
-    },
-    (err: unknown) => {
-      pending = undefined
-      throw err
-    },
-  )
-  return pending
+  const revision = contentRevision()
+  if (pending?.revision !== revision) {
+    const promise: Promise<CatalogExam[]> = fetchCatalog().then(
+      (exams) => {
+        if (revision === contentRevision()) cached = { revision, exams }
+        return exams
+      },
+      (err: unknown) => {
+        if (pending?.promise === promise) pending = undefined
+        throw err
+      },
+    )
+    pending = { revision, promise }
+  }
+  return pending.promise
 }
 
 /** Exams (by position) with their subjects, topics and question totals. */
 export function useExamCatalog() {
-  return useAsync(loadCatalog, cached)
+  return useAsync(loadCatalog, cached?.revision === contentRevision() ? cached.exams : undefined)
 }
 
 /** Every topic of an exam, in order. */
 export function examTopics(exam: CatalogExam) {
   return exam.subjects.flatMap((s) => s.topics)
+}
+
+export interface TopicPlace {
+  exam: CatalogExam
+  subject: CatalogSubject
+  topic: CatalogTopic
+}
+
+/** Every topic in the catalog by id, with its exam and subject. */
+export function topicPlaces(exams: CatalogExam[]): ReadonlyMap<string, TopicPlace> {
+  return new Map(
+    exams.flatMap((exam) =>
+      exam.subjects.flatMap((subject) => subject.topics.map((topic) => [topic.id, { exam, subject, topic }] as const)),
+    ),
+  )
 }
 
 /** The exam and topic for a topic id, if it is in the catalog. */

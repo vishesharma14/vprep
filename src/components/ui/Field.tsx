@@ -70,6 +70,11 @@ export function TextField({ label, hint, error, optional, id, className, ...prop
   )
 }
 
+/** An input styled like TextField's, for when it is labelled another way (aria-label, a fieldset). */
+export function TextInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={cx(controlClass, className)} {...props} />
+}
+
 type SelectFieldProps = FieldProps & SelectHTMLAttributes<HTMLSelectElement>
 
 /** Labelled native select, styled to match TextField. */

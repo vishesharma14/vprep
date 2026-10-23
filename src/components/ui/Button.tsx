@@ -2,7 +2,8 @@ import type { ButtonHTMLAttributes } from 'react'
 import { Link, type LinkProps } from 'react-router-dom'
 import { cx } from '../../lib/cx'
 
-type Variant = 'primary' | 'secondary' | 'ghost'
+/** `danger`: confirms something that can't be undone, such as a delete. */
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 /** `icon`: a square for one icon; give it an aria-label. */
 type Size = 'sm' | 'md' | 'icon'
 
@@ -10,6 +11,7 @@ const variants: Record<Variant, string> = {
   primary: 'bg-pen text-sheet hover:bg-pen/90',
   secondary: 'border border-ink/15 bg-sheet text-ink hover:border-pen hover:text-pen',
   ghost: 'text-pen hover:bg-pen/10',
+  danger: 'bg-bad text-sheet hover:bg-bad/90',
 }
 
 const sizes: Record<Size, string> = {

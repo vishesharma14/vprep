@@ -306,6 +306,24 @@ export interface FormulaCatalogRow extends Omit<Formula, 'created_at'> {
   question_ids: string[]
 }
 
+/**
+ * A row returned by admin_question_stats() (admins only): one per question,
+ * of any status. bigints, returned as numbers.
+ */
+export interface AdminQuestionStats {
+  question_id: string
+  attempts: number
+  /** Distinct learners who attempted it. */
+  learners: number
+  /** Graded attempts (correct or incorrect). Accuracy = correct / answered. */
+  answered: number
+  /** Solved independently or after a hint. */
+  correct: number
+  revealed: number
+  skipped: number
+  open_reports: number
+}
+
 /** A row returned by get_leaderboard(). */
 export interface LeaderboardRow {
   /** bigint, returned by the Data API as a number. Ties share a rank. */

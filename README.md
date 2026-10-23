@@ -69,6 +69,7 @@ src/
                  PageHeader, nav config
     practice/    QuestionScreen, OptionList, Summary, status labels and colours,
                  BookmarkButton, ReportProblem (report form)
+    admin/       AdminOverview, QuestionList, QuestionEditor, QuestionPreview
   pages/         One component per route
   lib/           neon.ts (Neon Auth + Data API client), attempts.ts (attempt
                  statuses and saving), reports.ts (report reasons and
@@ -97,7 +98,7 @@ src/
 | `/progress`      | Progress    |
 | `/leaderboard`   | Leaderboard: Global, or `?scope=country` / `?scope=state` |
 | `/search`        | Search      |
-| `/admin`         | Admin       |
+| `/admin`         | Admin (admins only, loaded on demand): `?tab=overview`, `?tab=questions` (with `q`, `exam`, `status`, `sort`), `?tab=edit` for a new question or `?tab=edit&id=<id>` |
 | `/account`       | Account     |
 
 Unknown paths redirect to `/`.
