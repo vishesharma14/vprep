@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { PageHeader } from '../components/layout/PageHeader'
+import { GoalBubbles } from '../components/progress/GoalBubbles'
+import { Percent } from '../components/progress/Percent'
 import { Bubble } from '../components/ui/Bubble'
 import { ButtonLink } from '../components/ui/Button'
 import { Card, CardLink } from '../components/ui/Card'
@@ -9,6 +11,7 @@ import { LoadError } from '../components/ui/LoadError'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { LoadingLabel, Skeleton } from '../components/ui/Skeleton'
 import { examTopics, findTopic, useExamCatalog, type CatalogExam } from '../hooks/useExamCatalog'
+import { totalsAccuracy, useMyProgress } from '../hooks/useMyProgress'
 import { progressTotals, useTopicProgress, type ProgressByTopic } from '../hooks/useTopicProgress'
 import { CATEGORIES } from '../lib/categories'
 import { plural } from '../lib/format'
@@ -16,13 +19,20 @@ import type { TopicProgressRow } from '../types'
 
 const gridClass = 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3'
 
+const labelClass = 'font-mono text-[0.6875rem] font-medium uppercase tracking-widest text-drop'
+
 export function Home() {
+  const auth = useAuth()
   const catalog = useExamCatalog()
   const progress = useTopicProgress()
 
   return (
     <>
       <Greeting />
+
+      {auth.status === 'signed-in' && (
+        <TodayCard userId={auth.user.id} profileGoal={auth.profile?.daily_goal ?? null} />
+      )}
 
       {progress.status === 'error' ? (
         <section className="mb-10">
@@ -94,6 +104,72 @@ function Greeting() {
   return <PageHeader title={firstName ? `${greeting}, ${firstName}` : greeting} />
 }
 
+/** Today's attempts against the daily goal, the current streak and overall accuracy. */
+function TodayCard({ userId, profileGoal }: { userId: string; profileGoal: number | null }) {
+  const progress = useMyProgress(userId)
+
+  if (progress.status === 'error') {
+    return (
+      <section className="mb-6">
+        <LoadError message={`Couldn't load today's progress. ${progress.error}`} onRetry={progress.retry} />
+      </section>
+    )
+  }
+  if (progress.status === 'loading') return <TodayCardSkeleton />
+
+  const { totals, streak, today_count, daily_goal } = progress.data
+  // The profile changes as soon as a new goal is saved on Account.
+  const goal = profileGoal ?? daily_goal
+
+  return (
+    <section aria-labelledby="today" className="mb-6">
+      <Card className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-3">
+          <h2 id="today" className={labelClass}>
+            Today
+          </h2>
+          {goal !== null && <GoalBubbles done={today_count} goal={goal} />}
+        </div>
+        <dl className="flex shrink-0 gap-8">
+          <div>
+            <dt className={labelClass}>Streak</dt>
+            <dd className="font-display text-2xl font-bold">{plural(streak.current, 'day')}</dd>
+          </div>
+          <div>
+            <dt className={labelClass}>Accuracy</dt>
+            <dd className="font-display text-2xl font-bold">
+              <Percent value={totalsAccuracy(totals)} />
+            </dd>
+          </div>
+        </dl>
+      </Card>
+    </section>
+  )
+}
+
+function TodayCardSkeleton() {
+  return (
+    <div className="mb-6">
+      <LoadingLabel>Loading today's progress…</LoadingLabel>
+      <Card className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-3 w-14" />
+          <Skeleton className="h-4 w-44" />
+          <Skeleton className="h-3 w-56 max-w-full" />
+        </div>
+        <div className="flex gap-8">
+          {Array.from({ length: 2 }, (_, i) => (
+            <div key={i} className="flex flex-col gap-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-7 w-20" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 /** The exam of the most recent attempt, if there is one. */
 function ContinueCard({ exams, progress }: { exams: CatalogExam[]; progress: ProgressByTopic }) {
   let latest: TopicProgressRow | undefined
@@ -110,7 +186,7 @@ function ContinueCard({ exams, progress }: { exams: CatalogExam[]; progress: Pro
     <section aria-labelledby="continue" className="mb-10">
       <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 id="continue" className="font-mono text-[0.6875rem] font-medium uppercase tracking-widest text-drop">
+          <h2 id="continue" className={labelClass}>
             Continue
           </h2>
           <p className="font-display text-xl font-bold">{exam.name}</p>

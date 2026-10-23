@@ -28,3 +28,11 @@ const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'sh
 export function formatDate(iso: string) {
   return dateFormat.format(new Date(iso))
 }
+
+// The day is already in the learner's time zone, so it is read and shown as UTC.
+const dayFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+
+/** "23 Oct" for "2026-10-23". */
+export function formatDay(day: string) {
+  return dayFormat.format(new Date(`${day}T00:00:00Z`))
+}

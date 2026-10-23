@@ -92,21 +92,23 @@ interface DbError {
   message?: string
 }
 
-/** ensure_profile raises this when the database sees no signed-in user. */
-const NO_USER = 'Sign in before creating a profile'
+/** ensure_profile and my_progress raise these when the database sees no signed-in user. */
+const NO_USER = ['Sign in before creating a profile', 'Sign in to see your progress']
 
 /**
  * True when a signed-in request failed because the database didn't accept the
- * user: ensure_profile found no user, row-level security or a missing grant
- * blocked a write (42501), the Data API rejected the JWT (PGRST3xx), or 401.
+ * user: ensure_profile or my_progress found no user, row-level security or a
+ * missing grant blocked a write (42501), the Data API rejected the JWT
+ * (PGRST3xx), or 401.
  */
 export function isAuthRejected(error: DbError | null | undefined, status?: number) {
   if (!error) return false
+  const message = error.message ?? ''
   return (
     status === 401 ||
     error.code === '42501' ||
     /^PGRST3\d\d$/.test(error.code ?? '') ||
-    (error.message ?? '').includes(NO_USER)
+    NO_USER.some((text) => message.includes(text))
   )
 }
 

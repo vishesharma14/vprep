@@ -65,6 +65,6 @@ export function progressTotals(topics: CatalogTopic[], progress: ProgressByTopic
 }
 
 /** Accuracy as a whole percentage, or null before any graded answer. */
-export function accuracyPercent({ answered, correct }: ProgressTotals) {
+export function accuracyPercent({ answered, correct }: Pick<ProgressTotals, 'answered' | 'correct'>) {
   return answered > 0 ? Math.round((correct / answered) * 100) : null
 }

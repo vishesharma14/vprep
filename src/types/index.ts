@@ -216,6 +216,75 @@ export interface TopicProgressRow {
   last_attempt_at: string
 }
 
+/** Attempt counts in my_progress(). bigints, returned as numbers. */
+export interface MyProgressTotals {
+  attempts: number
+  /** Distinct questions tried. */
+  unique_questions: number
+  independent: number
+  hint: number
+  revealed: number
+  incorrect: number
+  skipped: number
+  /** Time spent on every attempt, in ms. */
+  time_ms: number
+}
+
+/** One day in my_progress().daily. */
+export interface MyProgressDay {
+  /** yyyy-mm-dd in the learner's time zone. */
+  day: string
+  attempts: number
+  /** Attempts solved independently or after a hint. */
+  correct: number
+}
+
+/** One subject in my_progress().subjects. */
+export interface MyProgressSubject {
+  subject_id: string
+  subject_name: string
+  exam_slug: string
+  exam_name: string
+  /** Distinct questions tried. */
+  attempted: number
+  /** Graded attempts (correct or incorrect). Accuracy = correct / answered. */
+  answered: number
+  correct: number
+}
+
+/** One topic in my_progress().topics. */
+export interface MyProgressTopic extends MyProgressSubject {
+  topic_id: string
+  topic_name: string
+  /** Questions missed and not solved correctly since the last miss. */
+  open_mistakes: number
+}
+
+/**
+ * What my_progress() returns: the signed-in learner's own attempts on
+ * published questions, with days counted in `time_zone`.
+ */
+export interface MyProgress {
+  /** The time zone used: the one asked for, or Asia/Kolkata if Postgres doesn't know it. */
+  time_zone: string
+  /** yyyy-mm-dd. */
+  today: string
+  /** Null only if the learner has no profile. */
+  daily_goal: number | null
+  /** Attempts today, of any status. */
+  today_count: number
+  /** yyyy-mm-dd of the latest attempt; null before the first. */
+  last_active_day: string | null
+  totals: MyProgressTotals
+  /** Days in a row with at least one attempt. `current` is 0 unless that run reaches today or yesterday. */
+  streak: { current: number; best: number }
+  /** One per day, oldest first, ending today. */
+  daily: MyProgressDay[]
+  /** Subjects and topics with at least one attempt, by exam then name. */
+  subjects: MyProgressSubject[]
+  topics: MyProgressTopic[]
+}
+
 /** A row returned by get_leaderboard(). */
 export interface LeaderboardRow {
   /** bigint, returned by the Data API as a number. Ties share a rank. */
