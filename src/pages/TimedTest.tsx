@@ -202,7 +202,7 @@ function TestFlow({
 
   return (
     <div className={cx('mx-auto flex w-full flex-col gap-4', phaseWidth[phase.kind])}>
-      {!signedIn && <GuestNotice />}
+      {!signedIn && <GuestNotice activity="test" />}
       {phase.kind === 'setup' ? (
         <TestSetup title={title} context={context} available={questions.length} onStart={start} />
       ) : phase.kind === 'running' ? (

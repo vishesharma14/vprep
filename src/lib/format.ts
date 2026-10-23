@@ -21,3 +21,10 @@ export function formatDuration(ms: number) {
   if (minutes > 0) return `${minutes}m ${pad(seconds)}s`
   return `${seconds}s`
 }
+
+const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+
+/** "22 Oct 2026", in the learner's time zone. */
+export function formatDate(iso: string) {
+  return dateFormat.format(new Date(iso))
+}

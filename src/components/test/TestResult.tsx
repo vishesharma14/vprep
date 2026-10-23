@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useBookmarkToggle } from '../../hooks/useBookmarks'
 import { isCorrect, isGraded } from '../../lib/attempts'
 import { cx } from '../../lib/cx'
 import { formatDuration, plural } from '../../lib/format'
@@ -184,12 +185,18 @@ export function TestResult({ title, outcome, exam, save, onRetrySave, onRestart 
         </h2>
         <ol className="flex flex-col gap-4">
           {results.map((result, i) => (
-            <ReviewItem key={result.question.id} result={result} number={i + 1} timed />
+            <BookmarkableReviewItem key={result.question.id} result={result} number={i + 1} />
           ))}
         </ol>
       </section>
     </div>
   )
+}
+
+/** A reviewed question with its bookmark button. */
+function BookmarkableReviewItem({ result, number }: { result: PracticeResult; number: number }) {
+  const bookmark = useBookmarkToggle(result.question.id)
+  return <ReviewItem result={result} number={number} timed bookmark={bookmark} />
 }
 
 function SaveStatus({ save, onRetry }: { save: SaveState; onRetry: () => void }) {

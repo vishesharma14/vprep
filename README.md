@@ -63,17 +63,21 @@ db/
 src/
   components/
     ui/          Button, Card, Tag, Bubble (OMR-style option circle), Notice,
-                 Disclosure (closed-by-default toggle), icons
+                 Disclosure (closed-by-default toggle), Tabs, FilterChips,
+                 form fields, icons
     layout/      AppShell (sidebar on desktop, bottom tab bar on mobile),
                  PageHeader, nav config
-    practice/    QuestionScreen, OptionList, Summary, status labels and colours
+    practice/    QuestionScreen, OptionList, Summary, status labels and colours,
+                 BookmarkButton, ReportProblem (report form)
   pages/         One component per route
   lib/           neon.ts (Neon Auth + Data API client), attempts.ts (attempt
-                 statuses and saving), cx.ts (class-name helper)
+                 statuses and saving), reports.ts (report reasons and
+                 sending), cx.ts (class-name helper)
   types/         One interface per table, view and function result,
                  plus a union type for every CHECK constraint
   auth/          AuthProvider, useAuth, RequireAuth
-  hooks/         useExamCatalog, useTopicProgress, usePracticeSet, useAsync
+  hooks/         useExamCatalog, useTopicProgress, usePracticeSet, useAsync,
+                 useBookmarks (shared bookmark store, optimistic updates)
   App.tsx        Router
   index.css      Tailwind import + design tokens
 ```
@@ -88,7 +92,7 @@ src/
 | `/practice`      | Practice: one of `?topic=<id>`, `?subject=<id>`, `?exam=<slug>`, `?ids=<id,id,…>`, `?q=<id>` |
 | `/test`          | TimedTest   |
 | `/result`        | Result      |
-| `/revision`      | Revision    |
+| `/revision`      | Revision: bookmarks, or `?tab=mistakes` |
 | `/formulas`      | Formulas    |
 | `/progress`      | Progress    |
 | `/leaderboard`   | Leaderboard |

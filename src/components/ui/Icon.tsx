@@ -59,3 +59,12 @@ export function ChevronIcon({ className }: { className?: string }) {
     </Icon>
   )
 }
+
+/** Outline, or `filled` when the question is bookmarked. */
+export function BookmarkIcon({ className, filled = false }: { className?: string; filled?: boolean }) {
+  return (
+    <Icon className={className}>
+      <path d="M5.5 3.25h9v13.5L10 13.25l-4.5 3.5z" fill={filled ? 'currentColor' : 'none'} />
+    </Icon>
+  )
+}

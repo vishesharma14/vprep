@@ -1,6 +1,7 @@
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Card, CardLink } from '../components/ui/Card'
+import { FilterChips } from '../components/ui/FilterChips'
 import { LoadError } from '../components/ui/LoadError'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { LoadingLabel, Skeleton } from '../components/ui/Skeleton'
@@ -8,7 +9,6 @@ import { Tag } from '../components/ui/Tag'
 import { examTopics, useExamCatalog, type CatalogExam } from '../hooks/useExamCatalog'
 import { progressTotals, useTopicProgress, type ProgressByTopic } from '../hooks/useTopicProgress'
 import { CATEGORIES, categoryLabel, isExamCategory } from '../lib/categories'
-import { cx } from '../lib/cx'
 import { plural } from '../lib/format'
 import type { ExamCategory } from '../types'
 
@@ -59,31 +59,15 @@ const CHIPS: Array<{ id: ExamCategory | null; label: string }> = [{ id: null, la
 
 function CategoryChips({ selected }: { selected: ExamCategory | null }) {
   return (
-    <nav aria-label="Exam categories">
-      <ul className="flex flex-wrap gap-2">
-        {CHIPS.map(({ id, label }) => {
-          const active = id === selected
-          return (
-            <li key={label}>
-              <Link
-                to={id ? `/exams?category=${id}` : '/exams'}
-                replace
-                aria-current={active ? 'true' : undefined}
-                className={cx(
-                  'inline-flex h-9 items-center rounded-full border px-4 text-sm font-bold transition-colors',
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pen',
-                  active
-                    ? 'border-pen bg-pen text-sheet'
-                    : 'border-ink/15 bg-sheet text-ink/75 hover:border-pen hover:text-pen',
-                )}
-              >
-                {label}
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
+    <FilterChips
+      label="Exam categories"
+      chips={CHIPS.map(({ id, label }) => ({
+        key: label,
+        label,
+        to: id ? `/exams?category=${id}` : '/exams',
+        active: id === selected,
+      }))}
+    />
   )
 }
 

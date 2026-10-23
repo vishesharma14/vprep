@@ -3,7 +3,8 @@ import { Link, type LinkProps } from 'react-router-dom'
 import { cx } from '../../lib/cx'
 
 type Variant = 'primary' | 'secondary' | 'ghost'
-type Size = 'sm' | 'md'
+/** `icon`: a square for one icon; give it an aria-label. */
+type Size = 'sm' | 'md' | 'icon'
 
 const variants: Record<Variant, string> = {
   primary: 'bg-pen text-sheet hover:bg-pen/90',
@@ -14,6 +15,7 @@ const variants: Record<Variant, string> = {
 const sizes: Record<Size, string> = {
   sm: 'h-8 px-3 text-sm',
   md: 'h-11 px-5 text-base',
+  icon: 'size-8',
 }
 
 const buttonClass = (variant: Variant, size: Size, className?: string) =>

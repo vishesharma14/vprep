@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useBookmarkToggle } from '../../hooks/useBookmarks'
 import { similarQuestions, type PracticeQuestion, type SimilarQuestion } from '../../hooks/usePracticeSet'
 import { answerStatus, optionLetter } from '../../lib/attempts'
 import { cx } from '../../lib/cx'
@@ -10,7 +11,9 @@ import { Disclosure } from '../ui/Disclosure'
 import { CheckIcon, CrossIcon, EyeIcon } from '../ui/Icon'
 import { ProgressBar } from '../ui/ProgressBar'
 import { Tag } from '../ui/Tag'
+import { BookmarkButton, BookmarkMessage } from './BookmarkButton'
 import { OptionList } from './OptionList'
+import { ReportButton, ReportForm } from './ReportProblem'
 import { STATUS_LABEL } from './status'
 
 /** How one question ended. */
@@ -46,9 +49,9 @@ const verdictIcons: Record<Verdict, ReactNode> = {
   revealed: <EyeIcon />,
 }
 
-// Keyboard shortcuts must not fire while typing, and Enter on a focused
-// button or link already activates it.
-const TYPING = 'input:not([type="radio"]), textarea, select, [contenteditable="true"]'
+// Keyboard shortcuts must not fire while typing or in the "Report a problem"
+// panel, and Enter on a focused button or link already activates it.
+const TYPING = 'input:not([type="radio"]), textarea, select, [contenteditable="true"], [data-report-panel]'
 const ACTIVATES_ON_ENTER = 'button, a, summary'
 
 interface QuestionScreenProps {
@@ -85,10 +88,14 @@ export function QuestionScreen({
   const [hintShown, setHintShown] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
+  const [reporting, setReporting] = useState(false)
+  const bookmark = useBookmarkToggle(question.id)
+  const reportFormId = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const hintRef = useRef<HTMLDivElement>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
   const verdictRef = useRef<HTMLDivElement>(null)
+  const toolsRef = useRef<HTMLDivElement>(null)
   const isLast = position === total - 1
   const letters = `A–${optionLetter(question.options.length - 1)}`
 
@@ -138,6 +145,11 @@ export function QuestionScreen({
   function skip() {
     finish('skipped', null)
     onNext()
+  }
+
+  function closeReport() {
+    setReporting(false)
+    requestAnimationFrame(() => toolsRef.current?.querySelector<HTMLElement>('[data-report-button]')?.focus())
   }
 
   // Re-subscribed after every render, so the handler always sees the latest state.
@@ -198,12 +210,24 @@ export function QuestionScreen({
 
       <Card className="flex flex-col gap-5">
         <header className="flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-3">
-            <p className="font-mono text-xs uppercase tracking-wider text-ink/60">
-              {question.exam.name} <span aria-hidden>/</span> {question.subject.name} <span aria-hidden>/</span>{' '}
-              {question.topic.name}
-            </p>
-            <span className="shrink-0 font-mono text-xs text-ink/50">{question.code}</span>
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-mono text-xs uppercase tracking-wider text-ink/60">
+                {question.exam.name} <span aria-hidden>/</span> {question.subject.name} <span aria-hidden>/</span>{' '}
+                {question.topic.name}
+              </p>
+              <div ref={toolsRef} className="flex shrink-0 items-center gap-1">
+                <span className="mr-1 font-mono text-xs text-ink/50">{question.code}</span>
+                <BookmarkButton bookmark={bookmark} code={question.code} />
+                <ReportButton
+                  signedIn={signedIn}
+                  open={reporting}
+                  formId={reportFormId}
+                  onToggle={() => (reporting ? closeReport() : setReporting(true))}
+                />
+              </div>
+            </div>
+            <BookmarkMessage bookmark={bookmark} />
           </div>
           <ul aria-label="About this question" className="flex flex-wrap gap-2">
             {question.subtopic && (
@@ -225,6 +249,9 @@ export function QuestionScreen({
               </li>
             )}
           </ul>
+          {reporting && (
+            <ReportForm id={reportFormId} questionId={question.id} code={question.code} onClose={closeReport} />
+          )}
         </header>
 
         <p className="whitespace-pre-line break-words text-lg leading-relaxed">{question.body}</p>

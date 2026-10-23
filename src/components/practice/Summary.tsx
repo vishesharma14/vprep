@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { BookmarkToggle } from '../../hooks/useBookmarks'
 import type { PracticeQuestion } from '../../hooks/usePracticeSet'
 import { isCorrect, isGraded, optionLetter } from '../../lib/attempts'
 import { cx } from '../../lib/cx'
@@ -8,6 +9,7 @@ import { ButtonLink } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Disclosure } from '../ui/Disclosure'
 import { Tag } from '../ui/Tag'
+import { BookmarkButton, BookmarkMessage } from './BookmarkButton'
 import type { Answer } from './QuestionScreen'
 import { STATUS_FILL, STATUS_LABEL, STATUS_ORDER, STATUS_TONE, statusCounts } from './status'
 
@@ -147,20 +149,28 @@ interface ReviewItemProps {
   number: number
   /** From a timed test: shows the time spent, and "Not answered" for a skip. */
   timed?: boolean
+  /** Shows a bookmark button; from useBookmarkToggle(). */
+  bookmark?: BookmarkToggle
 }
 
-export function ReviewItem({ result, number, timed = false }: ReviewItemProps) {
+export function ReviewItem({ result, number, timed = false, bookmark }: ReviewItemProps) {
   const { question, status, selectedIndex } = result
   const option = (i: number) => `${optionLetter(i)}. ${question.options[i]}`
 
   return (
     <li>
       <Card className="flex flex-col gap-3 pb-1">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="font-mono text-xs text-ink/60">
-            {number}. {question.code} · {question.topic.name}
-          </p>
-          <Tag tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Tag>
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-mono text-xs text-ink/60">
+              {number}. {question.code} · {question.topic.name}
+            </p>
+            <div className="flex items-center gap-2">
+              <Tag tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Tag>
+              {bookmark && <BookmarkButton bookmark={bookmark} code={question.code} />}
+            </div>
+          </div>
+          {bookmark && <BookmarkMessage bookmark={bookmark} />}
         </div>
         <p className="whitespace-pre-line break-words">{question.body}</p>
         <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_minmax(0,1fr)]">
