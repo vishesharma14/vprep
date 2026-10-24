@@ -4,7 +4,10 @@ import { deleteQuestion, setQuestionStatus, type AdminQuestion } from '../../hoo
 import { topicPlaces, type CatalogExam, type TopicPlace } from '../../hooks/useExamCatalog'
 import { accuracyPercent } from '../../hooks/useTopicProgress'
 import { cx } from '../../lib/cx'
+import { NETWORK_ERROR } from '../../lib/errors'
 import { firstLine, plural } from '../../lib/format'
+import { fetchFormulas } from '../../lib/formulas'
+import { downloadCsv, exportFileName, questionsCsv } from '../../lib/questionCsv'
 import { canPublish, QUESTION_STATUS_LABEL } from '../../lib/questions'
 import { matchesEveryWord, searchWords } from '../../lib/search'
 import type { QuestionStatus } from '../../types'
@@ -48,16 +51,17 @@ const compare: Record<Sort, (a: AdminQuestion, b: AdminQuestion) => number> = {
   accuracy: (a, b) => ratio(a) - ratio(b) || b.answered - a.answered || byCode(a.code, b.code),
 }
 
-/** What the editor hands back after a save: a message, and the question to point out. */
+/** What the editor or the import hands back after a save: a message, and the question to point out, if one. */
 export interface SavedNotice {
-  id: string
+  id: string | null
   text: string
 }
 
 /** The location state the list is opened with after a save, if any. */
 function savedNotice(state: unknown): SavedNotice | null {
   const saved = (state as { saved?: unknown } | null)?.saved as Partial<SavedNotice> | undefined
-  return typeof saved?.id === 'string' && typeof saved.text === 'string' ? { id: saved.id, text: saved.text } : null
+  if (typeof saved?.text !== 'string') return null
+  return { id: typeof saved.id === 'string' ? saved.id : null, text: saved.text }
 }
 
 interface ListNotice {
@@ -76,6 +80,7 @@ export function QuestionList({ exams, questions }: QuestionListProps) {
   const location = useLocation()
   const saved = savedNotice(location.state)
   const [notice, setNotice] = useState<ListNotice | null>(saved && { tone: 'ok', text: saved.text })
+  const [exporting, setExporting] = useState(false)
   const noticeRef = useRef<HTMLDivElement>(null)
   const places = useMemo(() => topicPlaces(exams), [exams])
 
@@ -140,6 +145,20 @@ export function QuestionList({ exams, questions }: QuestionListProps) {
     update({ q: null, exam: null, status: null })
   }
 
+  /** Downloads every question, whatever the filters, as CSV that the import reads back. */
+  async function exportCsv() {
+    setExporting(true)
+    try {
+      const formulas = await fetchFormulas()
+      downloadCsv(exportFileName(new Date()), questionsCsv(questions, { exams, formulas }))
+      announce({ tone: 'ok', text: `Exported ${plural(questions.length, 'question')}.` })
+    } catch (err) {
+      announce({ tone: 'bad', text: `Couldn't export the questions. ${err instanceof Error ? err.message : NETWORK_ERROR}` })
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -197,6 +216,17 @@ export function QuestionList({ exams, questions }: QuestionListProps) {
               Clear filters
             </Button>
           )}
+          <Button variant="secondary" size="sm" disabled={exporting} onClick={exportCsv}>
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </Button>
+          <ButtonLink
+            to={{ search: '?tab=questions&view=import' }}
+            state={{ list: location.search }}
+            variant="secondary"
+            size="sm"
+          >
+            Import CSV
+          </ButtonLink>
           <ButtonLink to={{ search: '?tab=edit' }} state={{ list: location.search }} size="sm">
             Add question
           </ButtonLink>

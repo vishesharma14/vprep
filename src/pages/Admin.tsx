@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { AdminOverview, AdminOverviewSkeleton } from '../components/admin/AdminOverview'
 import { FormulaManager, FormulaManagerSkeleton } from '../components/admin/FormulaManager'
 import { QuestionEditor, QuestionEditorSkeleton } from '../components/admin/QuestionEditor'
+import { QuestionImport, QuestionImportSkeleton } from '../components/admin/QuestionImport'
 import { QuestionList, QuestionListSkeleton } from '../components/admin/QuestionList'
 import { ReportList, ReportListSkeleton } from '../components/admin/ReportList'
 import { TaxonomyTree, TaxonomyTreeSkeleton } from '../components/admin/TaxonomyTree'
@@ -38,6 +39,8 @@ export function Admin() {
   const tab = TABS.find((t) => t === params.get('tab')) ?? 'overview'
   // ?tab=edit adds a question; ?tab=edit&id=<id> edits one.
   const editId = tab === 'edit' ? params.get('id') : null
+  // ?tab=questions&view=import imports a CSV file, under the Questions tab.
+  const importing = tab === 'questions' && params.get('view') === 'import'
   const editing = editId && questions.status === 'ready' ? questions.data.find((q) => q.id === editId) : undefined
   const openReports =
     questions.status === 'ready' ? questions.data.reduce((total, q) => total + q.open_reports, 0) : 0
@@ -68,8 +71,11 @@ export function Admin() {
     if (catalog.status === 'error') {
       return <LoadError message={`Couldn't load the exams. ${catalog.error}`} onRetry={catalog.retry} />
     }
-    if (catalog.status === 'loading' || questions.status === 'loading') return SKELETONS[tab]
+    if (catalog.status === 'loading' || questions.status === 'loading') {
+      return importing ? <QuestionImportSkeleton /> : SKELETONS[tab]
+    }
     if (tab === 'overview') return <AdminOverview exams={catalog.data} questions={questions.data} />
+    if (importing) return <QuestionImport exams={catalog.data} questions={questions.data} />
     if (tab === 'questions') return <QuestionList exams={catalog.data} questions={questions.data} />
     if (tab === 'taxonomy') return <TaxonomyTree exams={catalog.data} questions={questions.data} />
     return <QuestionEditor exams={catalog.data} questions={questions.data} id={editId} />
@@ -87,7 +93,8 @@ export function Admin() {
         tabs={tabs}
         selected={tab}
         onSelect={(t) => {
-          if (t !== tab) setParams({ tab: t }, { replace: true })
+          // Questions again, from the import, goes back to the list.
+          if (t !== tab || importing) setParams({ tab: t }, { replace: true })
         }}
         wrap
       />

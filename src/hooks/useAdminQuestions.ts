@@ -144,6 +144,20 @@ export async function saveQuestion(input: QuestionInput, id: string | null): Pro
   return { question }
 }
 
+export type ImportResult = { questions: Question[]; error?: undefined } | { questions?: undefined; error: string }
+
+/**
+ * Adds questions in one request, so the database saves all of them or, if
+ * any is turned down, none. Resolves to the saved rows, or an error message.
+ */
+export async function importQuestions(inputs: QuestionInput[]): Promise<ImportResult> {
+  const result = await write(() => neon.from('questions').insert(inputs).select())
+  if (result.error !== undefined) return { error: result.error }
+  const added = result.rows
+  update((rows) => [...rows, ...added.map((question) => ({ ...question, ...NO_STATS }))])
+  return { questions: added }
+}
+
 /** Publishes or unpublishes a question. Resolves to the saved row, or an error message. */
 export async function setQuestionStatus(id: string, status: QuestionStatus): Promise<SaveResult> {
   const result = await write(() => neon.from('questions').update({ status }).eq('id', id).select())

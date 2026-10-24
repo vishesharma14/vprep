@@ -19,6 +19,8 @@ export default defineConfig({
           groups: [
             { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 3 },
             { name: 'router', test: /node_modules[\\/](react-router|react-router-dom)[\\/]/, priority: 2 },
+            // Only the admin's CSV import and export use it, so learners never download it.
+            { name: 'papaparse', test: /node_modules[\\/]papaparse[\\/]/, priority: 4 },
             // @neondatabase/neon-js and what it pulls in (Neon Auth, PostgREST).
             { name: 'neon', test: /node_modules[\\/]/, priority: 1 },
           ],

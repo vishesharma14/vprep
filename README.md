@@ -81,6 +81,19 @@ If a learner has the site open during a deploy and opens a page that hasn't load
 1. [`cleanup_1_preview.sql`](db/cleanup/cleanup_1_preview.sql) changes nothing. It lists what part 2 will delete: questions added after the seed (above Q1054), every problem report, and exams, subjects, topics and formulas that aren't in `seed.sql`. Its last rows list learners, for information only; they are never deleted.
 2. [`cleanup_2_delete.sql`](db/cleanup/cleanup_2_delete.sql) deletes exactly that, in one transaction. Run it only if nothing in the preview is real content you want to keep. If any step fails (for example, a test question that learners have attempted), nothing is deleted. Its last query counts what is left: 7 exams, 17 subjects, 32 topics, 27 formulas, 54 questions and 0 reports.
 
+## Importing and exporting questions
+
+On the admin **Questions** tab, **Export CSV** downloads every question, and **Import CSV** adds up to 500 from a file. The template (**Download template** on the import screen) has the columns:
+
+`exam, subject, topic, subtopic, difficulty, type, year, source, question, option_a … option_f, answer, hint, explanation, formula, tags, status`
+
+- `exam`, `subject`, `topic`: the slug or exact name (any case) of an existing exam, subject and topic.
+- `option_a` … `option_f`: 2 to 6 options, filled in from `option_a` with no gaps. `answer` is the correct option's letter.
+- `difficulty`: `easy`, `medium` (the default) or `hard`. `type`: `practice` (the default) or `pyq`, which needs a `year`. `status`: `draft` (the default), `in_review` or `published`, which needs an `explanation`.
+- `formula`: a formula's slug. `tags`: separated by semicolons.
+
+An exported file has a `code` column first, which import ignores, and a UTF-8 BOM so Excel shows Hindi and ₹ correctly; save from Excel with **Save As -> CSV UTF-8**. Every row is checked with the editor's rules before anything is saved, a question already in the bank or repeated in the file is flagged, and the import is one request, so it adds all the rows or none.
+
 ## Scripts
 
 | Command           | What it does                         |
@@ -119,12 +132,14 @@ src/
     practice/    QuestionScreen, OptionList, Summary, status labels and colours,
                  BookmarkButton, ReportProblem (report form)
     admin/       AdminOverview, QuestionList, QuestionEditor, QuestionPreview,
-                 TaxonomyTree (exams > subjects > topics), FormulaManager,
-                 ReportList, UserList, ScrollTable (table with pinned actions)
+                 QuestionImport (CSV import with preview), TaxonomyTree
+                 (exams > subjects > topics), FormulaManager, ReportList,
+                 UserList, ScrollTable (table with pinned actions)
   pages/         One component per route
   lib/           neon.ts (Neon Auth + Data API client), attempts.ts (attempt
                  statuses and saving), reports.ts (report reasons and
-                 sending), cx.ts (class-name helper)
+                 sending), questionCsv.ts (CSV import and export),
+                 cx.ts (class-name helper)
   types/         One interface per table, view and function result,
                  plus a union type for every CHECK constraint
   auth/          AuthProvider, useAuth, RequireAuth
@@ -151,7 +166,7 @@ vercel.json      SPA rewrite and cache headers for Vercel
 | `/progress`      | Progress    |
 | `/leaderboard`   | Leaderboard, open to signed-out visitors: Global, or `?scope=country` / `?scope=state` (signed in). Names show as first name and last initial, and learners join once they have points |
 | `/search`        | Search      |
-| `/admin`         | Admin (admins only, loaded on demand): `?tab=overview`, `?tab=questions` (with `q`, `exam`, `status`, `sort`), `?tab=edit` for a new question or `?tab=edit&id=<id>`, `?tab=taxonomy` (exams and topics), `?tab=formulas`, `?tab=reports`, `?tab=users` |
+| `/admin`         | Admin (admins only, loaded on demand): `?tab=overview`, `?tab=questions` (with `q`, `exam`, `status`, `sort`; `?tab=questions&view=import` for the CSV import), `?tab=edit` for a new question or `?tab=edit&id=<id>`, `?tab=taxonomy` (exams and topics), `?tab=formulas`, `?tab=reports`, `?tab=users` |
 | `/account`       | Account     |
 
 Any other path shows Page not found.

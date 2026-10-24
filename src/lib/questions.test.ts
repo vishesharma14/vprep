@@ -104,6 +104,10 @@ describe('parseTags', () => {
     expect(parseTags('a, b , ,a')).toEqual(['a', 'b'])
   })
 
+  it('splits on another separator when given one', () => {
+    expect(parseTags('a; b,c ;; a', /[;,]/)).toEqual(['a', 'b', 'c'])
+  })
+
   it('is empty for no tags', () => {
     expect(parseTags('')).toEqual([])
     expect(parseTags(' , ')).toEqual([])

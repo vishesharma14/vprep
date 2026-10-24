@@ -130,8 +130,8 @@ export function questionErrors(form: QuestionForm): QuestionErrors {
 }
 
 /** "a, b , ,a" → ["a", "b"]. */
-export function parseTags(text: string) {
-  return [...new Set(text.split(',').map((tag) => tag.trim()).filter(Boolean))]
+export function parseTags(text: string, separator: string | RegExp = ',') {
+  return [...new Set(text.split(separator).map((tag) => tag.trim()).filter(Boolean))]
 }
 
 const orNull = (text: string) => text.trim() || null

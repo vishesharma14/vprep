@@ -28,6 +28,7 @@ import { CrossIcon } from '../ui/Icon'
 import { LoadError } from '../ui/LoadError'
 import { Notice } from '../ui/Notice'
 import { LoadingLabel, Skeleton } from '../ui/Skeleton'
+import { DEFAULT_LIST, listSearchOf } from './listSearch'
 import { QuestionPreview } from './QuestionPreview'
 import type { SavedNotice } from './QuestionList'
 import { StatusPill } from './StatusPill'
@@ -57,14 +58,6 @@ const SAVED_AS: Record<QuestionStatus, string> = {
 }
 
 const byName = new Intl.Collator('en', { numeric: true }).compare
-
-/** Where Save and Cancel go back to: the list as it was, or the whole list. */
-const DEFAULT_LIST = '?tab=questions'
-
-function listSearchOf(state: unknown) {
-  const list = (state as { list?: unknown } | null)?.list
-  return typeof list === 'string' && list.startsWith('?tab=questions') ? list : DEFAULT_LIST
-}
 
 /** Formulas by group, in the order given. */
 function groupFormulas(formulas: Formula[]) {
