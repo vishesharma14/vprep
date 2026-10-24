@@ -1,4 +1,14 @@
 -- =====================================================================
+-- !!  DO NOT RUN. One-off pre-launch script, kept only as a record.  !!
+--
+-- This and cleanup_1_preview.sql were run once, before launch, to remove
+-- test data. They must never be used again now that real content exists:
+-- this script deletes every question above Q1054, and real questions
+-- start at Q1056, so it would delete real questions, every problem
+-- report, and every exam, subject, topic and formula added since
+-- seed.sql. (Migration 0007 makes it fail and roll back if a learner has
+-- attempted one of those questions, but don't rely on that.)
+-- =====================================================================
 -- VPrep cleanup, part 2 of 2: DELETE test data
 --
 -- Run part 1 first and check its list. This deletes exactly what part 1

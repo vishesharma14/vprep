@@ -1,4 +1,13 @@
 -- =====================================================================
+-- !!  DO NOT RUN. One-off pre-launch script, kept only as a record.  !!
+--
+-- This and cleanup_2_delete.sql were run once, before launch, to remove
+-- test data. They must never be used again now that real content exists:
+-- part 2 deletes every question above Q1054, and real questions start at
+-- Q1056, so it would delete real questions, every problem report, and
+-- every exam, subject, topic and formula added since seed.sql. This
+-- preview changes nothing, but everything it lists is now real content.
+-- =====================================================================
 -- VPrep cleanup, part 1 of 2: PREVIEW (changes nothing)
 --
 -- Lists the test data that part 2 will delete: questions added after the

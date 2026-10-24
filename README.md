@@ -1,68 +1,227 @@
-# vprep
+# VPrep
 
 [![CI](https://github.com/vishesharma14/vprep/actions/workflows/ci.yml/badge.svg)](https://github.com/vishesharma14/vprep/actions/workflows/ci.yml)
 
-Exam-preparation platform. This repo is currently the **foundation only**: routing, layout, design tokens, UI primitives, domain types, the database schema and the Neon client. No features yet.
+**Exam practice that tracks how you solved each question, not only whether you got it right.**
 
-## Stack
+Practice questions, timed tests, formulas and revision for government, engineering, medical, placement and certification exams.
 
-- React 18 + TypeScript, built with Vite
-- Tailwind CSS v4 via the `@tailwindcss/vite` plugin (no `tailwind.config.js`; tokens live in `src/index.css`)
-- React Router
-- [Neon](https://neon.tech): Postgres, with Neon Auth for sign-in and the Neon Data API for queries from the browser, through `@neondatabase/neon-js`
+**Live demo: [vprep-umber.vercel.app](https://vprep-umber.vercel.app)** (you can practise without an account; sign in to save progress)
 
-## Setup
+![The practice screen: an SSC CGL percentage question with four options, option B chosen, and Hint, Show answer and Skip buttons](docs/screenshots/practice.webp)
+
+## Why VPrep
+
+Most practice apps score a right answer the same way whether you worked it out, opened a hint first or looked at the answer. That makes scores look better than they are. VPrep records **how** each question was solved:
+
+| Status        | What happened                          | Points |
+| ------------- | -------------------------------------- | -----: |
+| `independent` | Correct, without the hint              |     10 |
+| `hint`        | Correct after opening the hint         |      6 |
+| `revealed`    | Opened the answer instead of answering |      1 |
+| `incorrect`   | Chose a wrong option                   |      0 |
+| `skipped`     | Moved on without answering             |      0 |
+
+- **Best attempt per question.** The leaderboard adds up each learner's best attempt on each published question, so answering the same question again can't pile up points.
+- **Accuracy that means something.** Accuracy is (independent + hint) / (independent + hint + incorrect): revealed and skipped questions don't count either way. Progress also shows the share solved independently, and a dash when there is nothing to divide by yet.
+- **The database keeps it honest.** Attempts can't be edited or deleted. A trigger rejects an attempt whose status doesn't match the option chosen, and sets the time itself, so streaks can't be back-dated.
+- **Mistakes stay until they're fixed.** A question stays in the mistakes notebook until it is answered correctly after the latest wrong answer.
+
+## Features
+
+### For learners
+
+- **Browse by goal and exam**, down to subjects, topics and subtopics, with question counts.
+- **Practise** a topic, a subject or a whole exam. Options are OMR-style bubbles; use the hint, show the answer or skip. Keyboard shortcuts: A–D or 1–4 to choose, Enter to submit, H for the hint. Each answer is followed by the explanation and, where there is one, the formula it uses.
+- **Practise as a guest**, with no account. Signing in saves every answer.
+- **Timed tests**: 5, 10, 15 or all questions, picked at random, at 45, 60 or 90 seconds each. A refresh resumes the test with the same deadline. Answers and explanations appear after you submit.
+- **Revision**: bookmarks in named lists, and a mistakes notebook with "Practise all open mistakes".
+- **Formulas** grouped by subject, searchable, each linked to the questions that use it.
+- **Search** every published question. Every word must match, partial words work ("prob" finds "probability"), and results can be filtered by exam, difficulty and type (practice or previous year), then practised as a set.
+- **Progress**: how you solved your questions, today against your daily goal, current and best streak in your time zone, the last 14 days, accuracy by subject, and "Needs work" and "Strong topics" lists.
+- **Leaderboard**: global or by country for everyone, and by state once signed in.
+- **Report a problem** with any question (wrong answer, unclear question or explanation, typo).
+- **Account**: sign up with email and password, verify the email with a code, reset a forgotten password by code, and set your name, state and daily goal.
+- **Works on phones** (bottom tab bar) and follows the system's dark mode.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/exams.webp" alt="Exams page: seven exam cards with subject, topic and question counts" /></td>
+    <td width="50%"><img src="docs/screenshots/exam-detail.webp" alt="SSC CGL exam page: subjects and topics with Practise and Timed buttons" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/timed-test.webp" alt="Timed test setup for a GATE CSE mock: number of questions, time per question and total time" /></td>
+    <td><img src="docs/screenshots/search.webp" alt="Search results for 'probability' with exam, difficulty and type filters" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/formulas.webp" alt="Formulas page: arithmetic formulas with notes and how many questions use each" /></td>
+    <td><img src="docs/screenshots/leaderboard.webp" alt="Global leaderboard showing rank, short name, state and points" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/progress.png" alt="Progress page: how questions were solved, daily goal, streak and accuracy by subject" /></td>
+    <td><img src="docs/screenshots/home.webp" alt="Home page: five goals with exam and question counts" /></td>
+  </tr>
+</table>
+
+<p>
+  <img src="docs/screenshots/home-mobile.webp" alt="Home page on a phone" width="260" />
+  &nbsp;
+  <img src="docs/screenshots/practice-mobile.webp" alt="Practice screen on a phone" width="260" />
+</p>
+
+### For admins
+
+- **Overview**: questions by status, open reports, explanation coverage and questions per exam.
+- **Question bank**: search, filter by exam and status, and sort by most reported or lowest accuracy to find questions that are wrong or too hard.
+- **Question editor** with a preview of the answered question. It checks the same rules as the database, and moves questions through draft, in review and published.
+- **CSV import and export**: import up to 500 questions at once, checked row by row and saved all or nothing; export the whole bank. See [Importing and exporting questions](#importing-and-exporting-questions).
+- **Exams, subjects and topics** as a tree, and a **formula manager**.
+- **Reports** from learners, to resolve or dismiss.
+- **Users**: search, suspend, or make someone an admin.
+- A question that learners have attempted can't be deleted (it would erase their history); unpublish it instead.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/admin-questions.png" alt="Admin question bank with search, filters and sort" /></td>
+    <td width="50%"><img src="docs/screenshots/admin-editor.png" alt="Admin question editor with the preview beside it" /></td>
+  </tr>
+</table>
+
+## Content
+
+The live site has **7 exams, 17 subjects, 32 topics, 216 questions and 27 formulas**, across five goals:
+
+| Goal          | Exams                |
+| ------------- | -------------------- |
+| Government    | SSC CGL, NDA         |
+| Engineering   | JEE Main, GATE CSE   |
+| Medical       | NEET UG              |
+| Placement     | Placement Aptitude   |
+| Certification | Data Analytics       |
+
+[`db/seed.sql`](db/seed.sql) holds the exams, subjects, topics, formulas and the first 54 questions (Q1001–Q1054). The rest were added after launch and are in the live database only, not in this repo.
+
+## Tech stack
+
+| Layer      | Choice |
+| ---------- | ------ |
+| Front end  | React 18, TypeScript, React Router 7; every page except Home is loaded on demand |
+| Build      | Vite 8 |
+| Styling    | Tailwind CSS v4 through `@tailwindcss/vite`; design tokens in `src/index.css` |
+| Sign-in    | Neon Auth: email and password, email verification and password reset by code |
+| Data       | Neon Data API (PostgREST-compatible), called from the browser with `@neondatabase/neon-js` |
+| Database   | [Neon](https://neon.tech) Postgres: Row Level Security, SQL functions, views and triggers |
+| CSV        | Papa Parse |
+| Hosting    | Vercel, with Vercel Web Analytics |
+| Quality    | Vitest, oxlint, GitHub Actions |
+
+## Architecture
+
+There is no application server. The browser talks to Neon directly, and Postgres decides what each request may read or write.
+
+```mermaid
+flowchart LR
+  subgraph Vercel
+    SPA["React + Vite app<br/>(static files)"]
+  end
+  User(["Browser"]) -->|loads| SPA
+  User -->|"sign in, email codes<br/>(guests get an anonymous token)"| Auth["Neon Auth"]
+  User -->|"queries and RPC calls<br/>with the JWT"| API["Neon Data API"]
+  API -->|"as role anonymous or authenticated"| PG[("Postgres<br/>RLS on every table")]
+  Auth -->|"users in the neon_auth schema"| PG
+```
+
+1. Vercel serves the built app. Every path outside `/assets/` gets `index.html`, so deep links work.
+2. Neon Auth signs learners in and issues a JWT. Signed-out visitors get an anonymous token (`allowAnonymous: true` in [`src/lib/neon.ts`](src/lib/neon.ts)).
+3. The Data API checks the JWT and runs each query as the `anonymous` or `authenticated` role. Row Level Security policies, table grants and SQL functions decide what comes back.
+
+## Security and data design
+
+- **Row Level Security on every table.** All 10 tables have RLS turned on, with table grants as a second lock. Anyone can read exams, subjects, topics, formulas and **published** questions; drafts are admin-only. Attempts, bookmarks and reports are visible only to their owner (and admins).
+- **`SECURITY DEFINER` helpers, kept narrow.** `current_user_id()`, `is_admin()`, `is_active_user()`, `ensure_profile()`, `get_leaderboard()`, `admin_users()` and `admin_question_stats()` run as the owner, with `search_path` set to `''`. The admin functions raise "Admins only" for anyone else. Views and the progress and search functions run with the caller's permissions, so RLS still applies.
+- **Insert-only attempts.** Learners can insert and read their own attempts, never update or delete them. The `validate_attempt()` trigger allows attempts only on published questions, checks that a correct status has the correct option and an incorrect one a wrong option, and sets `created_at` itself.
+- **Protected roles.** A trigger stops learners from changing their own role or suspension. Suspended accounts can't save attempts or file reports.
+- **Leaderboard privacy.** The public leaderboard shows a short name ("Vishesh S.") and an `is_me` flag instead of full names and account ids, and leaves out learners with no points and suspended accounts (migration 0008).
+- **Email verification.** Sign-up gives no session until the emailed code is entered. A password-reset request answers the same way whether or not the email has an account.
+- **Open-redirect fix.** After signing in, the app returns to `?next=`. [`safeNext()`](src/auth/redirect.ts) only allows paths on this site, reading the value the way the browser does (tabs and newlines dropped, `\` taken as `/`), so links like `/\evil.example` or `/.//evil.example` go to Home. [`redirect.test.ts`](src/auth/redirect.test.ts) covers these cases.
+- **Public keys only.** Both environment variables end up in the browser bundle. That is expected: the Data API is public, and the database decides what each request can see.
+
+### Migrations
+
+| Migration | What it adds |
+| --------- | ------------ |
+| [`0001_schema.sql`](db/migrations/0001_schema.sql) | Tables, RLS policies, grants, triggers, `my_mistakes` view, `get_leaderboard()` and helper functions |
+| [`0002_catalog_views.sql`](db/migrations/0002_catalog_views.sql) | `topic_catalog` and `my_topic_progress` views, read by Home and Exams |
+| [`0003_auth_debug.sql`](db/migrations/0003_auth_debug.sql) | `auth_debug()`, which the app calls to log why the database rejected a signed-in request |
+| [`0004_fix_current_user_id.sql`](db/migrations/0004_fix_current_user_id.sql) | A fix so `current_user_id()` reliably sees the signed-in user |
+| [`0005_my_progress.sql`](db/migrations/0005_my_progress.sql) | `my_progress()`, for the Progress page and Home |
+| [`0006_search_formulas.sql`](db/migrations/0006_search_formulas.sql) | `search_questions()`, the `formula_catalog` view, and a leaderboard fix |
+| [`0007_admin.sql`](db/migrations/0007_admin.sql) | `admin_users()` and `admin_question_stats()` for the admin panel, and a block on deleting questions that have attempts |
+| [`0008_leaderboard_privacy.sql`](db/migrations/0008_leaderboard_privacy.sql) | A new `get_leaderboard()` for the public leaderboard: short names and `is_me` instead of full names and account ids, and no learners with 0 points |
+
+## Quality
+
+- **277 unit tests** in 20 files, run with [Vitest](https://vitest.dev). They sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it.
+- **GitHub Actions** ([`ci.yml`](.github/workflows/ci.yml)) runs lint, tests and the production build on every push and pull request to `main`.
+- **oxlint** with the React, TypeScript and oxc plugins ([`.oxlintrc.json`](.oxlintrc.json)).
+- **TypeScript** type-checks the whole app as part of `npm run build`.
+
+## Run locally
 
 Requires Node.js `^22.12.0` or `>=24.0.0` (Vitest needs it for `npm test`). CI uses Node 22.
 
-### 1. Set up the Neon database
-
-Do this once per Neon project, in the [Neon Console](https://console.neon.tech), in this order. The schema script checks that steps 1 and 2 are done and stops with a clear message if they aren't.
-
-1. **Enable Neon Auth.** Open **Auth** and click **Enable Auth**.
-2. **Enable the Data API.** Open **Data API**, tick **Use Neon Auth**, and click **Enable Data API**.
-3. **Create the schema.** Open the **SQL Editor**, paste in all of [`db/migrations/0001_schema.sql`](db/migrations/0001_schema.sql) and run it. It creates the tables, Row Level Security policies, views and functions in one transaction, so if it fails nothing is created and you can run it again after fixing the problem.
-4. **Load the seed data.** In the SQL Editor, run all of [`db/seed.sql`](db/seed.sql). It adds 7 exams with their subjects and topics, 27 formulas and 54 published questions. Run it only once: a second run fails on duplicate slugs and changes nothing.
-5. **Run migrations 0002–0008.** In the SQL Editor, run each file below in full, once, in this order:
-
-   | Migration | What it adds |
-   | --------- | ------------ |
-   | [`0002_catalog_views.sql`](db/migrations/0002_catalog_views.sql) | `topic_catalog` and `my_topic_progress` views, read by Home and Exams |
-   | [`0003_auth_debug.sql`](db/migrations/0003_auth_debug.sql) | `auth_debug()`, which the app calls to log why the database rejected a signed-in request |
-   | [`0004_fix_current_user_id.sql`](db/migrations/0004_fix_current_user_id.sql) | A fix so `current_user_id()` reliably sees the signed-in user |
-   | [`0005_my_progress.sql`](db/migrations/0005_my_progress.sql) | `my_progress()`, for the Progress page and Home |
-   | [`0006_search_formulas.sql`](db/migrations/0006_search_formulas.sql) | `search_questions()`, the `formula_catalog` view, and a leaderboard fix |
-   | [`0007_admin.sql`](db/migrations/0007_admin.sql) | `admin_users()` and `admin_question_stats()` for the admin panel, and a block on deleting questions that have attempts |
-   | [`0008_leaderboard_privacy.sql`](db/migrations/0008_leaderboard_privacy.sql) | A new `get_leaderboard()` for the public leaderboard: short names ("Vishesh S.") and `is_me` instead of full names and account ids, and no learners with 0 points |
-
-The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0008`.
-
-### 2. Run the app
-
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Create your local env file
-cp .env.example .env
-#    then set VITE_NEON_AUTH_URL (Neon Console -> Auth)
-#    and VITE_NEON_DATA_API_URL (Neon Console -> Data API)
-
-# 3. Start the dev server
+cp .env.example .env   # then fill in the two URLs below
 npm run dev
 ```
 
 If everything is set up, the Home page lists five goals (Government, Engineering, Medical, Placement, Certification) with their exam and question counts. If something is missing, it shows the error and a Retry button instead.
 
-`.env` is gitignored, so don't commit it. Both URLs end up in the browser bundle. That's expected: the Data API is public, and the Row Level Security policies in the schema decide what each request can see. Signed-out visitors get an anonymous token (`allowAnonymous: true` in `src/lib/neon.ts`), which lets them read exams, subjects, topics, formulas and published questions, and nothing else.
+| Command           | What it does                         |
+| ----------------- | ------------------------------------ |
+| `npm run dev`     | Start the dev server with HMR        |
+| `npm run build`   | Type-check, then build to `dist/`    |
+| `npm run preview` | Serve the production build locally   |
+| `npm run lint`    | Lint with oxlint                     |
+| `npm test`        | Run the unit tests once with Vitest  |
 
-`src/lib/neon.ts` throws a clear error at startup if either variable is missing.
+### Environment variables
 
-### 3. Deploy to Vercel
+| Variable                 | Where to find it                        |
+| ------------------------ | --------------------------------------- |
+| `VITE_NEON_AUTH_URL`     | Neon Console -> your project -> **Auth** |
+| `VITE_NEON_DATA_API_URL` | Neon Console -> your project -> **Data API** |
+
+`.env` is gitignored, so don't commit it. [`src/lib/neon.ts`](src/lib/neon.ts) throws a clear error at startup if either variable is missing.
+
+### Database setup
+
+Do this once per Neon project, in the [Neon Console](https://console.neon.tech), in this order. The schema script checks that steps 1 and 2 are done and stops with a clear message if they aren't.
+
+1. **Enable Neon Auth.** Open **Auth** and click **Enable Auth**.
+2. **Enable the Data API.** Open **Data API**, tick **Use Neon Auth**, and click **Enable Data API**.
+3. **Create the schema.** Open the **SQL Editor**, paste in all of [`db/migrations/0001_schema.sql`](db/migrations/0001_schema.sql) and run it. It runs in one transaction, so if it fails nothing is created and you can run it again after fixing the problem.
+4. **Load the seed data.** Run all of [`db/seed.sql`](db/seed.sql): 7 exams with their subjects and topics, 27 formulas and 54 published questions. Run it only once: a second run fails on duplicate slugs and changes nothing.
+5. **Run migrations 0002–0008**, each file in full, once, in order (see [Migrations](#migrations)).
+
+The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0008`.
+
+> [!CAUTION]
+> **Never run the scripts in [`db/cleanup/`](db/cleanup/).** They were one-off scripts for removing test data before launch. They delete every question above Q1054, every problem report, and every exam, subject, topic and formula that isn't in `seed.sql`. Real questions on the live site start at Q1056, so running them now would delete real content. They are kept only as a record.
+
+To make yourself an admin, sign in once (that creates your profile), then run this in the SQL Editor:
+
+```sql
+update public.profiles set role = 'admin'
+where id = (select id from neon_auth."user" where email = 'you@example.com');
+```
+
+## Deploy to Vercel
 
 1. **Import the repo** in Vercel. It detects Vite: the build command is `npm run build` and the output directory is `dist`.
 2. **Set the environment variables.** In the project's **Settings -> Environment Variables**, add `VITE_NEON_AUTH_URL` and `VITE_NEON_DATA_API_URL`, with the same values as in `.env`. Vite writes them into the bundle at build time, so after adding or changing one, redeploy. If either is missing, the deployed site is a blank page and the browser console shows the error from `src/lib/neon.ts`.
-3. **Allow the domain in Neon Auth.** In the Neon Console, open **Auth -> Configuration -> Domains** and add the Vercel domain (for example `https://vprep.vercel.app`). Until you do, sign-in and sign-up fail on the deployed site. Preview deployments have their own URLs; add those too if you want to sign in on them.
+3. **Allow the domain in Neon Auth.** In the Neon Console, open **Auth -> Configuration -> Domains** and add the Vercel domain (for example `https://vprep-umber.vercel.app`). Until you do, sign-in and sign-up fail on the deployed site. Preview deployments have their own URLs; add those too if you want to sign in on them.
 4. **Turn on Web Analytics.** In the Vercel project, open **Analytics** and click **Enable**. The app renders `<Analytics />` from `@vercel/analytics` in production builds only, so `npm run dev` sends nothing.
 
 **Link previews.** `index.html` has Open Graph and Twitter tags pointing at `https://vprep-umber.vercel.app/og-image.png`; change those URLs if the domain changes. The image, [`public/og-image.png`](public/og-image.png), is a headless Chrome screenshot of [`scripts/og-image.html`](scripts/og-image.html); the command to make it again is at the top of that file.
@@ -73,13 +232,6 @@ If everything is set up, the Home page lists five goals (Government, Engineering
 - **Built files are cached for a year.** Files in `/assets/` have a content hash in their name, so they get `Cache-Control: public, max-age=31536000, immutable`. `index.html` keeps Vercel's default (revalidate on every visit), so a new deploy shows up on the next page load.
 
 If a learner has the site open during a deploy and opens a page that hasn't loaded yet, its old file may be gone; the page shows "Couldn't load this page" and Retry reloads the app.
-
-### 4. Before launch: remove test data
-
-[`db/cleanup/`](db/cleanup/) holds two one-off scripts that delete the content added while testing. Run them by hand in the SQL Editor, only before launch, in this order:
-
-1. [`cleanup_1_preview.sql`](db/cleanup/cleanup_1_preview.sql) changes nothing. It lists what part 2 will delete: questions added after the seed (above Q1054), every problem report, and exams, subjects, topics and formulas that aren't in `seed.sql`. Its last rows list learners, for information only; they are never deleted.
-2. [`cleanup_2_delete.sql`](db/cleanup/cleanup_2_delete.sql) deletes exactly that, in one transaction. Run it only if nothing in the preview is real content you want to keep. If any step fails (for example, a test question that learners have attempted), nothing is deleted. Its last query counts what is left: 7 exams, 17 subjects, 32 topics, 27 formulas, 54 questions and 0 reports.
 
 ## Importing and exporting questions
 
@@ -94,57 +246,48 @@ On the admin **Questions** tab, **Export CSV** downloads every question, and **I
 
 An exported file has a `code` column first, which import ignores, and a UTF-8 BOM so Excel shows Hindi and ₹ correctly; save from Excel with **Save As -> CSV UTF-8**. Every row is checked with the editor's rules before anything is saved, a question already in the bank or repeated in the file is flagged, and the import is one request, so it adds all the rows or none.
 
-## Scripts
-
-| Command           | What it does                         |
-| ----------------- | ------------------------------------ |
-| `npm run dev`     | Start the dev server with HMR        |
-| `npm run build`   | Type-check, then build to `dist/`    |
-| `npm run preview` | Serve the production build locally   |
-| `npm run lint`    | Lint with oxlint                     |
-| `npm test`        | Run the unit tests once with Vitest  |
-
-Tests sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it. [GitHub Actions](.github/workflows/ci.yml) runs lint, tests and build on every push and pull request to `main`.
-
 ## Project structure
 
 ```
 .github/
   workflows/     ci.yml: lint, test and build on push and pull request
 db/
-  migrations/    0001_schema.sql (tables, RLS, views, functions)
-                 0002_catalog_views.sql (topic_catalog, my_topic_progress)
-                 0003_auth_debug.sql, 0004_fix_current_user_id.sql
-                 0005_my_progress.sql, 0006_search_formulas.sql
-                 0007_admin.sql, 0008_leaderboard_privacy.sql
-  cleanup/       One-off scripts to delete test data before launch
-  seed.sql       Exams, subjects, topics, formulas, questions
+  migrations/    0001_schema.sql to 0008_leaderboard_privacy.sql, run in order
+  cleanup/       One-off pre-launch scripts. Never run them again
+  seed.sql       Exams, subjects, topics, formulas, the first 54 questions
+docs/
+  screenshots/   README screenshots
 scripts/
   og-image.html  Template for public/og-image.png, the link preview image
+  screenshots.mjs  Takes the README screenshots with headless Chrome
 src/
   components/
     ui/          Button, Card, Tag, Bubble (OMR-style option circle), Notice,
-                 Disclosure (closed-by-default toggle), Tabs, FilterChips,
-                 form fields, icons
+                 Disclosure, Tabs, FilterChips, form fields, Skeleton, icons
     layout/      AppShell (sidebar on desktop, bottom tab bar on mobile),
-                 PageHeader, nav config, ErrorBoundary ("Something went
-                 wrong" screen)
+                 PageHeader, nav config, ErrorBoundary
     practice/    QuestionScreen, OptionList, Summary, status labels and colours,
-                 BookmarkButton, ReportProblem (report form)
+                 BookmarkButton, ReportProblem, GuestNotice
+    test/        TestSetup, TestRunner, TestResult (timed tests)
+    progress/    GoalBubbles (daily goal), Percent
+    account/     RegionSelect (state picker)
     admin/       AdminOverview, QuestionList, QuestionEditor, QuestionPreview,
                  QuestionImport (CSV import with preview), TaxonomyTree
                  (exams > subjects > topics), FormulaManager, ReportList,
                  UserList, ScrollTable (table with pinned actions)
   pages/         One component per route
-  lib/           neon.ts (Neon Auth + Data API client), attempts.ts (attempt
-                 statuses and saving), reports.ts (report reasons and
-                 sending), questionCsv.ts (CSV import and export),
-                 cx.ts (class-name helper)
+  lib/           neon.ts (Neon client), attempts.ts (statuses and saving),
+                 session.ts (token refresh), timedTest.ts (saved test state),
+                 questionCsv.ts (CSV import and export), questions.ts,
+                 taxonomy.ts and formulaForm.ts (the database's rules, checked
+                 in the forms), search.ts, reports.ts, format.ts and helpers
   types/         One interface per table, view and function result,
                  plus a union type for every CHECK constraint
-  auth/          AuthProvider, useAuth, RequireAuth
-  hooks/         useExamCatalog, useTopicProgress, usePracticeSet, useAsync,
-                 useBookmarks (shared bookmark store, optimistic updates)
+  auth/          AuthProvider, useAuth, RequireAuth, SessionExpiredDialog,
+                 redirect.ts (signInHref, safeNext)
+  hooks/         Data hooks: useExamCatalog, useTopicProgress, useMyProgress,
+                 usePracticeSet, useBookmarks, useLeaderboard,
+                 useSearchQuestions, useAdminQuestions, useAdminCatalog, …
   test/          Test setup (Neon client stand-in) and fixtures
   App.tsx        Router; every page except Home is loaded on demand
   index.css      Tailwind import + design tokens
@@ -159,13 +302,13 @@ vercel.json      SPA rewrite and cache headers for Vercel
 | `/exams`         | Exams       |
 | `/exams/:slug`   | ExamDetail  |
 | `/practice`      | Practice: one of `?topic=<id>`, `?subject=<id>`, `?exam=<slug>`, `?ids=<id,id,…>`, `?q=<id>` |
-| `/test`          | TimedTest   |
+| `/test`          | TimedTest: `?topic=<id>`, `?subject=<id>` or `?exam=<slug>` |
 | `/result`        | Result      |
-| `/revision`      | Revision: bookmarks, or `?tab=mistakes` |
+| `/revision`      | Revision (signed in): bookmarks, or `?tab=mistakes` |
 | `/formulas`      | Formulas    |
-| `/progress`      | Progress    |
-| `/leaderboard`   | Leaderboard, open to signed-out visitors: Global, or `?scope=country` / `?scope=state` (signed in). Names show as first name and last initial, and learners join once they have points |
-| `/search`        | Search      |
+| `/progress`      | Progress (signed in) |
+| `/leaderboard`   | Leaderboard, open to signed-out visitors: Global, `?scope=country`, or `?scope=state` (signed in) |
+| `/search`        | Search: `?q=`, with `exam`, `difficulty` and `type` filters |
 | `/admin`         | Admin (admins only, loaded on demand): `?tab=overview`, `?tab=questions` (with `q`, `exam`, `status`, `sort`; `?tab=questions&view=import` for the CSV import), `?tab=edit` for a new question or `?tab=edit&id=<id>`, `?tab=taxonomy` (exams and topics), `?tab=formulas`, `?tab=reports`, `?tab=users` |
 | `/account`       | Account     |
 
@@ -191,3 +334,29 @@ Fonts (Google Fonts, loaded in `index.html`):
 - `font-display`: Familjen Grotesk, for headings (applied to `h1`–`h6` automatically)
 - `font-sans`: Atkinson Hyperlegible, for body text (the default)
 - `font-mono`: IBM Plex Mono, for labels, numbers and timers
+
+## Screenshots
+
+The screenshots of public pages in [`docs/screenshots/`](docs/screenshots/) come from [`scripts/screenshots.mjs`](scripts/screenshots.mjs), which drives headless Chrome, signed out, at 1440 × 900 on desktop and 390 × 844 on a phone. It needs Node 22+ and Chrome, and no npm packages:
+
+```bash
+node scripts/screenshots.mjs                         # from the live site
+node scripts/screenshots.mjs http://localhost:5173   # from a local server
+```
+
+Pages that need sign-in are captured by hand at 1440 × 900 and saved under the same names: `progress.png`, `admin-questions.png` and `admin-editor.png`. Keep each file under 300 kB.
+
+## Known limitations and roadmap
+
+- **Answers are checked in the browser.** Each question is downloaded with its correct option, and the app works out the status before saving it. The database rejects a status that doesn't match the option chosen, but it can't tell whether someone read the answer from the network response first. **Planned:** grade answers on the server, with a function that takes the chosen option and returns the result, and stop sending `answer_index` with unanswered questions.
+- **Next: a machine learning layer.**
+  - **Similar questions** found with text embeddings, for "try a similar question" after a mistake.
+  - **Weak-topic recommendations** from each learner's attempt history.
+  - **Data-driven difficulty**, set from how learners actually do on each question instead of by hand.
+
+## Author
+
+**Vishesh Sharma**, B.Tech Computer Science and Engineering, SRM Institute of Science and Technology, Delhi NCR.
+
+- LinkedIn: [linkedin.com/in/visheshsharma14](https://www.linkedin.com/in/visheshsharma14)
+- GitHub: [@vishesharma14](https://github.com/vishesharma14)
