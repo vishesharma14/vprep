@@ -1,0 +1,291 @@
+<!doctype html>
+<!--
+  The link preview image, public/og-image.png (1200 x 630), as a page.
+  Colours and fonts are the light theme's tokens from src/index.css.
+
+  To make the PNG again, from the repo root, take a screenshot with headless
+  Chrome. The virtual time budget gives the Google Fonts time to load.
+
+    Windows (PowerShell):
+      & "C:\Program Files\Google\Chrome\Application\chrome.exe" --headless --disable-gpu --hide-scrollbars `
+        --force-device-scale-factor=1 --window-size=1200,630 --virtual-time-budget=10000 `
+        --user-data-dir="$env:TEMP\og-chrome" --screenshot="$PWD\public\og-image.png" "$PWD\scripts\og-image.html"
+
+    macOS:
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu --hide-scrollbars \
+        --force-device-scale-factor=1 --window-size=1200,630 --virtual-time-budget=10000 \
+        --user-data-dir=/tmp/og-chrome --screenshot="$PWD/public/og-image.png" "file://$PWD/scripts/og-image.html"
+
+  Then check the PNG is 1200 x 630 and under 300 kB.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Familjen+Grotesk:wght@400..700&family=IBM+Plex+Mono:wght@400;500;600&display=block"
+    />
+    <title>VPrep link preview</title>
+    <style>
+      :root {
+        --font-display: "Familjen Grotesk", ui-sans-serif, system-ui, sans-serif;
+        --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+        --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+        --color-paper: #f5f6fa;
+        --color-sheet: #ffffff;
+        --color-ink: #151829;
+        --color-drop: #c4465f;
+        --color-pen: #2441a6;
+        --color-ok: #137a5a;
+        --color-bad: #b3261e;
+        --color-warn: #935605;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 56px;
+        padding: 64px 80px;
+        background: var(--color-paper);
+        color: var(--color-ink);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Like Bubble in src/components/ui/Bubble.tsx. */
+      .bubble {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border: 2.5px solid color-mix(in oklab, var(--color-ink) 40%, transparent);
+        border-radius: 50%;
+        color: color-mix(in oklab, var(--color-ink) 70%, transparent);
+        font-family: var(--font-mono);
+        font-size: 17px;
+        font-weight: 600;
+        line-height: 1;
+      }
+
+      .bubble.filled {
+        border-color: var(--color-pen);
+        background: var(--color-pen);
+        color: var(--color-sheet);
+      }
+
+      .bubble.correct {
+        border-color: var(--color-ok);
+        background: var(--color-ok);
+        color: var(--color-sheet);
+      }
+
+      /* The "v prep" brand from the sidebar (AppShell.tsx), scaled up. */
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-display);
+        font-size: 44px;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+      }
+
+      .brand .bubble {
+        width: 58px;
+        height: 58px;
+        border-width: 3px;
+        font-size: 30px;
+      }
+
+      .intro {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      h1 {
+        margin-top: 44px;
+        font-family: var(--font-display);
+        font-size: 148px;
+        font-weight: 700;
+        line-height: 0.9;
+        letter-spacing: -0.04em;
+      }
+
+      .tagline {
+        margin-top: 24px;
+        max-width: 600px;
+        font-size: 40px;
+        line-height: 1.2;
+        color: color-mix(in oklab, var(--color-ink) 78%, transparent);
+      }
+
+      .tagline strong {
+        color: var(--color-pen);
+        white-space: nowrap;
+      }
+
+      /* Like Tag in src/components/ui/Tag.tsx. */
+      .exams {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 44px;
+        list-style: none;
+      }
+
+      .exams li {
+        padding: 7px 12px;
+        border-radius: 6px;
+        background: color-mix(in oklab, var(--color-drop) 10%, transparent);
+        color: var(--color-drop);
+        font-family: var(--font-mono);
+        font-size: 19px;
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      /* An answer sheet, like the timed test's (TestRunner.tsx). */
+      .sheet {
+        flex-shrink: 0;
+        width: 340px;
+        padding: 28px 30px 30px;
+        border: 1.5px solid color-mix(in oklab, var(--color-ink) 10%, transparent);
+        border-radius: 20px;
+        background: var(--color-sheet);
+        box-shadow: 0 24px 48px -28px color-mix(in oklab, var(--color-ink) 35%, transparent);
+      }
+
+      .label {
+        font-family: var(--font-mono);
+        font-size: 15px;
+        font-weight: 500;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--color-drop);
+      }
+
+      .rows {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 20px;
+        list-style: none;
+      }
+
+      .rows li {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .rows .number {
+        width: 28px;
+        font-family: var(--font-mono);
+        font-size: 17px;
+        font-weight: 500;
+        color: color-mix(in oklab, var(--color-ink) 55%, transparent);
+      }
+
+      .score {
+        margin-top: 26px;
+        padding-top: 22px;
+        border-top: 1.5px solid color-mix(in oklab, var(--color-ink) 10%, transparent);
+      }
+
+      .score-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .score-head span {
+        font-family: var(--font-mono);
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--color-ok);
+      }
+
+      .bar {
+        height: 10px;
+        margin-top: 12px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: color-mix(in oklab, var(--color-ink) 8%, transparent);
+      }
+
+      .bar div {
+        width: 75%;
+        height: 100%;
+        border-radius: 999px;
+        background: var(--color-ok);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="intro">
+      <div class="brand"><span class="bubble filled">v</span><span>prep</span></div>
+      <h1>VPrep</h1>
+      <p class="tagline">Exam practice that tracks <strong>honest progress</strong></p>
+      <ul class="exams">
+        <li>SSC CGL</li>
+        <li>JEE Main</li>
+        <li>GATE CSE</li>
+        <li>NEET UG</li>
+        <li>Placement</li>
+      </ul>
+    </main>
+
+    <aside class="sheet" aria-hidden="true">
+      <p class="label">Answer sheet</p>
+      <ol class="rows">
+        <li>
+          <span class="number">01</span><span class="bubble">A</span><span class="bubble correct">B</span
+          ><span class="bubble">C</span><span class="bubble">D</span>
+        </li>
+        <li>
+          <span class="number">02</span><span class="bubble">A</span><span class="bubble">B</span
+          ><span class="bubble">C</span><span class="bubble correct">D</span>
+        </li>
+        <li>
+          <span class="number">03</span><span class="bubble filled">A</span><span class="bubble">B</span
+          ><span class="bubble">C</span><span class="bubble">D</span>
+        </li>
+        <li>
+          <span class="number">04</span><span class="bubble">A</span><span class="bubble">B</span
+          ><span class="bubble correct">C</span><span class="bubble">D</span>
+        </li>
+        <li>
+          <span class="number">05</span><span class="bubble">A</span><span class="bubble">B</span
+          ><span class="bubble">C</span><span class="bubble">D</span>
+        </li>
+      </ol>
+      <div class="score">
+        <p class="score-head">Solved independently <span>75%</span></p>
+        <div class="bar"><div></div></div>
+      </div>
+    </aside>
+  </body>
+</html>

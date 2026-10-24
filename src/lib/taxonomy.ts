@@ -64,9 +64,10 @@ export const examInput = (form: ExamForm & { category: ExamCategory }): ExamInpu
 
 /** What is wrong with a name, or undefined. */
 export function nameError(level: Level, name: string) {
-  const length = name.trim().length
-  if (length === 0) return `Give the ${level} a name.`
-  if (length > NAME_MAX[level]) return `Keep the name to ${NAME_MAX[level]} characters.`
+  const trimmed = name.trim()
+  if (!trimmed) return `Give the ${level} a name.`
+  // The database counts characters, not UTF-16 units.
+  if ([...trimmed].length > NAME_MAX[level]) return `Keep the name to ${NAME_MAX[level]} characters.`
 }
 
 export interface Positioned {

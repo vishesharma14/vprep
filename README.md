@@ -1,5 +1,7 @@
 # vprep
 
+[![CI](https://github.com/vishesharma14/vprep/actions/workflows/ci.yml/badge.svg)](https://github.com/vishesharma14/vprep/actions/workflows/ci.yml)
+
 Exam-preparation platform. This repo is currently the **foundation only**: routing, layout, design tokens, UI primitives, domain types, the database schema and the Neon client. No features yet.
 
 ## Stack
@@ -11,7 +13,7 @@ Exam-preparation platform. This repo is currently the **foundation only**: routi
 
 ## Setup
 
-Requires Node.js `^20.19.0` or `>=22.12.0`.
+Requires Node.js `^22.12.0` or `>=24.0.0` (Vitest needs it for `npm test`). CI uses Node 22.
 
 ### 1. Set up the Neon database
 
@@ -61,6 +63,9 @@ If everything is set up, the Home page lists five goals (Government, Engineering
 1. **Import the repo** in Vercel. It detects Vite: the build command is `npm run build` and the output directory is `dist`.
 2. **Set the environment variables.** In the project's **Settings -> Environment Variables**, add `VITE_NEON_AUTH_URL` and `VITE_NEON_DATA_API_URL`, with the same values as in `.env`. Vite writes them into the bundle at build time, so after adding or changing one, redeploy. If either is missing, the deployed site is a blank page and the browser console shows the error from `src/lib/neon.ts`.
 3. **Allow the domain in Neon Auth.** In the Neon Console, open **Auth -> Configuration -> Domains** and add the Vercel domain (for example `https://vprep.vercel.app`). Until you do, sign-in and sign-up fail on the deployed site. Preview deployments have their own URLs; add those too if you want to sign in on them.
+4. **Turn on Web Analytics.** In the Vercel project, open **Analytics** and click **Enable**. The app renders `<Analytics />` from `@vercel/analytics` in production builds only, so `npm run dev` sends nothing.
+
+**Link previews.** `index.html` has Open Graph and Twitter tags pointing at `https://vprep-umber.vercel.app/og-image.png`; change those URLs if the domain changes. The image, [`public/og-image.png`](public/og-image.png), is a headless Chrome screenshot of [`scripts/og-image.html`](scripts/og-image.html); the command to make it again is at the top of that file.
 
 [`vercel.json`](vercel.json) does two things:
 
@@ -84,10 +89,15 @@ If a learner has the site open during a deploy and opens a page that hasn't load
 | `npm run build`   | Type-check, then build to `dist/`    |
 | `npm run preview` | Serve the production build locally   |
 | `npm run lint`    | Lint with oxlint                     |
+| `npm test`        | Run the unit tests once with Vitest  |
+
+Tests sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it. [GitHub Actions](.github/workflows/ci.yml) runs lint, tests and build on every push and pull request to `main`.
 
 ## Project structure
 
 ```
+.github/
+  workflows/     ci.yml: lint, test and build on push and pull request
 db/
   migrations/    0001_schema.sql (tables, RLS, views, functions)
                  0002_catalog_views.sql (topic_catalog, my_topic_progress)
@@ -96,6 +106,8 @@ db/
                  0007_admin.sql, 0008_leaderboard_privacy.sql
   cleanup/       One-off scripts to delete test data before launch
   seed.sql       Exams, subjects, topics, formulas, questions
+scripts/
+  og-image.html  Template for public/og-image.png, the link preview image
 src/
   components/
     ui/          Button, Card, Tag, Bubble (OMR-style option circle), Notice,
@@ -118,6 +130,7 @@ src/
   auth/          AuthProvider, useAuth, RequireAuth
   hooks/         useExamCatalog, useTopicProgress, usePracticeSet, useAsync,
                  useBookmarks (shared bookmark store, optimistic updates)
+  test/          Test setup (Neon client stand-in) and fixtures
   App.tsx        Router; every page except Home is loaded on demand
   index.css      Tailwind import + design tokens
 vercel.json      SPA rewrite and cache headers for Vercel

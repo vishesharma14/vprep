@@ -14,14 +14,16 @@ import { LoadingLabel, Skeleton } from '../components/ui/Skeleton'
 import { Tag } from '../components/ui/Tag'
 import { useExamCatalog, type CatalogExam } from '../hooks/useExamCatalog'
 import { parseScope, usePracticeSet, type PracticeQuestion, type PracticeScope } from '../hooks/usePracticeSet'
-import { answerStatus, saveAttempts } from '../lib/attempts'
+import { saveAttempts } from '../lib/attempts'
 import { categoryLabel } from '../lib/categories'
 import { cx } from '../lib/cx'
 import { plural } from '../lib/format'
 import {
   clearRunningTest,
+  grade,
   loadRunningTest,
   newTest,
+  resumable,
   saveRunningTest,
   shuffle,
   type RunningTest,
@@ -71,37 +73,6 @@ function describe(scope: TestScope, { exam, subject, topic }: PracticeQuestion) 
     case 'topic':
       return { title: `${topic.name} test`, context: `${exam.name} / ${subject.name}` }
   }
-}
-
-/** The saved test, minus any question no longer published. Null if none are left. */
-function resumable(test: RunningTest, byId: Map<string, PracticeQuestion>): RunningTest | null {
-  const keep = test.questionIds.flatMap((id, i) => (byId.has(id) ? [i] : []))
-  if (keep.length === 0) return null
-  const pick = <T,>(list: T[]) => keep.map((i) => list[i])
-  const questionIds = pick(test.questionIds)
-  return {
-    ...test,
-    questionIds,
-    // An option that no longer exists counts as no answer.
-    answers: pick(test.answers).map((a, i) => (a !== null && a < byId.get(questionIds[i])!.options.length ? a : null)),
-    marked: pick(test.marked),
-    spent: pick(test.spent),
-    current: Math.max(0, keep.indexOf(test.current)),
-  }
-}
-
-/** Same rules as practice, without hints: right, wrong, or skipped when unanswered. */
-function grade(test: RunningTest, byId: Map<string, PracticeQuestion>): PracticeResult[] {
-  return test.questionIds.map((id, i) => {
-    const question = byId.get(id)!
-    const selectedIndex = test.answers[i]
-    return {
-      question,
-      status: selectedIndex === null ? 'skipped' : answerStatus(selectedIndex, question.answer_index, false),
-      selectedIndex,
-      timeSpentMs: test.spent[i],
-    }
-  })
 }
 
 type Phase =

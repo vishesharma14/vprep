@@ -1,6 +1,12 @@
+import type { PracticeResult } from '../components/practice/Summary'
+import type { PracticeQuestion } from '../hooks/usePracticeSet'
+import type { Subject, Topic } from '../types'
+import { answerStatus, isCorrect } from './attempts'
+
 // A running timed test lives in sessionStorage, so an accidental refresh (or
 // leaving the page and coming back) resumes it with the same deadline. Only
-// question ids are stored; the questions are loaded again on resume.
+// question ids are stored; the questions are loaded again on resume. Grading
+// a submitted test is here too.
 
 const STORAGE_KEY = 'vprep:timed-test'
 
@@ -83,6 +89,59 @@ export function clearRunningTest() {
   } catch {
     // Nothing to clear.
   }
+}
+
+/** The saved test, minus any question no longer published. Null if none are left. */
+export function resumable(test: RunningTest, byId: Map<string, PracticeQuestion>): RunningTest | null {
+  const keep = test.questionIds.flatMap((id, i) => (byId.has(id) ? [i] : []))
+  if (keep.length === 0) return null
+  const pick = <T,>(list: T[]) => keep.map((i) => list[i])
+  const questionIds = pick(test.questionIds)
+  return {
+    ...test,
+    questionIds,
+    // An option that no longer exists counts as no answer.
+    answers: pick(test.answers).map((a, i) => (a !== null && a < byId.get(questionIds[i])!.options.length ? a : null)),
+    marked: pick(test.marked),
+    spent: pick(test.spent),
+    current: Math.max(0, keep.indexOf(test.current)),
+  }
+}
+
+/** Same rules as practice, without hints: right, wrong, or skipped when unanswered. */
+export function grade(test: RunningTest, byId: Map<string, PracticeQuestion>): PracticeResult[] {
+  return test.questionIds.map((id, i) => {
+    const question = byId.get(id)!
+    const selectedIndex = test.answers[i]
+    return {
+      question,
+      status: selectedIndex === null ? 'skipped' : answerStatus(selectedIndex, question.answer_index, false),
+      selectedIndex,
+      timeSpentMs: test.spent[i],
+    }
+  })
+}
+
+export interface TopicScore {
+  topic: Topic
+  subject: Subject
+  correct: number
+  total: number
+}
+
+/** Correct answers per topic, weakest first. */
+export function topicScores(results: PracticeResult[]) {
+  const scores = new Map<string, TopicScore>()
+  for (const { question, status } of results) {
+    const score = scores.get(question.topic.id) ?? { topic: question.topic, subject: question.subject, correct: 0, total: 0 }
+    score.total++
+    if (isCorrect(status)) score.correct++
+    scores.set(question.topic.id, score)
+  }
+  return [...scores.values()].sort(
+    (a, b) =>
+      a.correct / a.total - b.correct / b.total || b.total - a.total || a.topic.name.localeCompare(b.topic.name),
+  )
 }
 
 /** A shuffled copy (Fisher–Yates). */

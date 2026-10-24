@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, test and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      # Needs no .env: tests replace the Neon client (src/test/setup.ts).
+      - run: npm test
+
+      # Needs no VITE_ variables either: Vite leaves them undefined, and the app
+      # only checks for them in the browser (src/lib/neon.ts).
+      - run: npm run build

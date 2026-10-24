@@ -3,7 +3,8 @@ import { useBookmarkToggle } from '../../hooks/useBookmarks'
 import { isCorrect, isGraded } from '../../lib/attempts'
 import { cx } from '../../lib/cx'
 import { formatDuration, plural } from '../../lib/format'
-import type { Exam, Subject, Topic } from '../../types'
+import { topicScores } from '../../lib/timedTest'
+import type { Exam } from '../../types'
 import { statusCounts } from '../practice/status'
 import { ReviewItem, StatusBar, type PracticeResult } from '../practice/Summary'
 import { Button, ButtonLink } from '../ui/Button'
@@ -35,28 +36,6 @@ interface TestResultProps {
 }
 
 const labelClass = 'font-mono text-[0.6875rem] font-medium uppercase tracking-widest text-drop'
-
-interface TopicScore {
-  topic: Topic
-  subject: Subject
-  correct: number
-  total: number
-}
-
-/** Correct answers per topic, weakest first. */
-function topicScores(results: PracticeResult[]) {
-  const scores = new Map<string, TopicScore>()
-  for (const { question, status } of results) {
-    const score = scores.get(question.topic.id) ?? { topic: question.topic, subject: question.subject, correct: 0, total: 0 }
-    score.total++
-    if (isCorrect(status)) score.correct++
-    scores.set(question.topic.id, score)
-  }
-  return [...scores.values()].sort(
-    (a, b) =>
-      a.correct / a.total - b.correct / b.total || b.total - a.total || a.topic.name.localeCompare(b.topic.name),
-  )
-}
 
 export function TestResult({ title, outcome, exam, save, onRetrySave, onRestart }: TestResultProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)

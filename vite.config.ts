@@ -1,10 +1,15 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  test: {
+    // Tests run in Node without .env or the network: the setup file swaps the
+    // Neon client for a stand-in that fails any test that calls it.
+    setupFiles: ['src/test/setup.ts'],
+  },
   build: {
     rolldownOptions: {
       output: {

@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react'
 import { lazy, Suspense, type ComponentType } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
@@ -116,11 +117,15 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <RouterProvider router={router} />
-        <SessionExpiredDialog />
-      </AuthProvider>
-    </ErrorBoundary>
+    <>
+      <ErrorBoundary>
+        <AuthProvider>
+          <RouterProvider router={router} />
+          <SessionExpiredDialog />
+        </AuthProvider>
+      </ErrorBoundary>
+      {/* Vercel Web Analytics, in production builds only: `npm run dev` loads no script and sends nothing. */}
+      {import.meta.env.PROD && <Analytics />}
+    </>
   )
 }
