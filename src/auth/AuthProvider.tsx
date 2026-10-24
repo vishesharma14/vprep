@@ -9,7 +9,9 @@ import {
   type AuthContextValue,
   type AuthState,
   type AuthUser,
+  type CodeInput,
   type ProfileChanges,
+  type ResetPasswordInput,
   type SignInInput,
   type SignUpInput,
 } from './useAuth'
@@ -97,16 +99,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [syncSession],
   )
 
+  /** Loads the session Neon Auth has just started, and the profile. */
+  const finishSignIn = useCallback(async () => {
+    setSessionExpired(false)
+    // The SDK may still hold the old session; fetch the new one so requests carry its JWT.
+    if (!(await syncSession({ force: true }))) throw new Error(NO_SESSION)
+    setSignInCount((n) => n + 1)
+  }, [syncSession])
+
   const signIn = useCallback(
     (input: SignInInput) =>
       withFriendlyErrors(async () => {
-        unwrap(await neon.auth.signIn.email({ email: input.email, password: input.password }))
-        setSessionExpired(false)
-        // The SDK may still hold the old session; fetch the new one so requests carry its JWT.
-        if (!(await syncSession({ force: true }))) throw new Error(NO_SESSION)
-        setSignInCount((n) => n + 1)
+        try {
+          unwrap(await neon.auth.signIn.email({ email: input.email, password: input.password }))
+        } catch (err) {
+          if (isEmailNotVerified(err)) return { needsVerification: true }
+          throw err
+        }
+        await finishSignIn()
+        return { needsVerification: false }
       }),
-    [syncSession],
+    [finishSignIn],
+  )
+
+  const verifyEmail = useCallback(
+    (input: CodeInput) =>
+      withFriendlyErrors(async () => {
+        const { data } = unwrap(await neon.auth.emailOtp.verifyEmail({ email: input.email, otp: input.code }))
+        // The code is used up now, so a session that can't be read isn't an error:
+        // the caller signs in with the password instead.
+        if (!data?.token) return { signedIn: false }
+        return finishSignIn().then(
+          () => ({ signedIn: true }),
+          () => ({ signedIn: false }),
+        )
+      }),
+    [finishSignIn],
   )
 
   const signOut = useCallback(
@@ -158,16 +186,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInCount,
       signUp,
       signIn,
+      sendVerificationCode,
+      verifyEmail,
+      sendPasswordResetCode,
+      resetPassword,
       signOut,
       updateProfile,
       refreshProfile,
       dismissSessionExpired,
     }),
-    [state, sessionExpired, signInCount, signUp, signIn, signOut, updateProfile, refreshProfile, dismissSessionExpired],
+    [
+      state,
+      sessionExpired,
+      signInCount,
+      signUp,
+      signIn,
+      verifyEmail,
+      signOut,
+      updateProfile,
+      refreshProfile,
+      dismissSessionExpired,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
+
+// Email codes (Better Auth's email-otp plugin). They change nothing in the
+// app's state, so they live outside the component.
+
+const sendVerificationCode = (email: string) =>
+  withFriendlyErrors(async () => {
+    unwrap(await neon.auth.emailOtp.sendVerificationOtp({ email, type: 'email-verification' }))
+  })
+
+const sendPasswordResetCode = (email: string) =>
+  withFriendlyErrors(async () => {
+    // Neon Auth answers the same whether or not the email has an account.
+    unwrap(await neon.auth.emailOtp.sendVerificationOtp({ email, type: 'forget-password' }))
+  })
+
+const resetPassword = (input: ResetPasswordInput) =>
+  withFriendlyErrors(async () => {
+    unwrap(await neon.auth.emailOtp.resetPassword({ email: input.email, otp: input.code, password: input.password }))
+  })
 
 function toAuthUser(user: BetterAuthUser): AuthUser {
   return { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified }
@@ -232,13 +294,29 @@ async function withFriendlyErrors<T>(task: () => Promise<T>) {
 
 /**
  * Neon Auth rejects failed requests with an AuthApiError carrying a snake_case
- * `code`; Better Auth's own codes are SCREAMING_CASE. Both are handled.
+ * `code`; Better Auth's own codes are SCREAMING_CASE. Both are handled, as a
+ * lower-case code.
  */
+function errorCode(err: unknown) {
+  const { code } = (err ?? {}) as { code?: unknown }
+  return typeof code === 'string' ? code.toLowerCase() : ''
+}
+
+/**
+ * Sign-in with the right password while email verification is on and the
+ * email isn't verified. Better Auth answers 403 EMAIL_NOT_VERIFIED, which the
+ * SDK turns into email_not_confirmed (status 422).
+ */
+function isEmailNotVerified(err: unknown) {
+  const c = errorCode(err)
+  return c === 'email_not_confirmed' || c === 'email_not_verified'
+}
+
 function authErrorMessage(err: unknown) {
   // fetch() rejects with a TypeError when the request never reached the server.
   if (err instanceof TypeError) return NETWORK_ERROR
-  const { code, status, message } = (err ?? {}) as { code?: unknown; status?: unknown; message?: unknown }
-  const c = typeof code === 'string' ? code.toLowerCase() : ''
+  const { status, message } = (err ?? {}) as { status?: unknown; message?: unknown }
+  const c = errorCode(err)
   const text = typeof message === 'string' ? message : ''
 
   if (c === 'invalid_credentials' || c === 'invalid_email_or_password' || c === 'invalid_password') {
@@ -247,13 +325,22 @@ function authErrorMessage(err: unknown) {
   if (c.startsWith('user_already_exists') || c === 'email_exists' || /already (exists|registered)/i.test(text)) {
     return 'An account with this email already exists. Sign in instead.'
   }
-  if (c === 'email_not_confirmed' || c === 'email_not_verified') {
-    return 'Verify your email first (check your inbox), then sign in.'
-  }
+  if (isEmailNotVerified(err)) return 'Verify your email first (check your inbox), then sign in.'
   if (c === 'weak_password' || c.startsWith('password_too')) {
     return 'Choose a stronger password of at least 8 characters.'
   }
   if (c === 'email_address_invalid' || c === 'invalid_email') return 'Enter a valid email address.'
   if (status === 429) return 'Too many attempts. Wait a minute, then try again.'
+  // Email codes. The SDK has no codes of its own for these, so it passes on
+  // only Better Auth's message ("Invalid OTP", "OTP expired", "Too many attempts").
+  if (c === 'invalid_otp' || /invalid otp/i.test(text)) {
+    return "That code isn't right. Check it against the most recent email and try again."
+  }
+  if (c === 'otp_expired' || /otp expired/i.test(text)) {
+    return 'That code has expired. Select "Resend code" to get a new one.'
+  }
+  if (c === 'too_many_attempts' || /too many attempts/i.test(text)) {
+    return 'Too many wrong codes. Select "Resend code" to get a new one.'
+  }
   return text || 'Something went wrong. Please try again.'
 }

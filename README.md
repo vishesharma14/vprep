@@ -21,7 +21,7 @@ Do this once per Neon project, in the [Neon Console](https://console.neon.tech),
 2. **Enable the Data API.** Open **Data API**, tick **Use Neon Auth**, and click **Enable Data API**.
 3. **Create the schema.** Open the **SQL Editor**, paste in all of [`db/migrations/0001_schema.sql`](db/migrations/0001_schema.sql) and run it. It creates the tables, Row Level Security policies, views and functions in one transaction, so if it fails nothing is created and you can run it again after fixing the problem.
 4. **Load the seed data.** In the SQL Editor, run all of [`db/seed.sql`](db/seed.sql). It adds 7 exams with their subjects and topics, 27 formulas and 54 published questions. Run it only once: a second run fails on duplicate slugs and changes nothing.
-5. **Run migrations 0002–0007.** In the SQL Editor, run each file below in full, once, in this order:
+5. **Run migrations 0002–0008.** In the SQL Editor, run each file below in full, once, in this order:
 
    | Migration | What it adds |
    | --------- | ------------ |
@@ -31,8 +31,9 @@ Do this once per Neon project, in the [Neon Console](https://console.neon.tech),
    | [`0005_my_progress.sql`](db/migrations/0005_my_progress.sql) | `my_progress()`, for the Progress page and Home |
    | [`0006_search_formulas.sql`](db/migrations/0006_search_formulas.sql) | `search_questions()`, the `formula_catalog` view, and a leaderboard fix |
    | [`0007_admin.sql`](db/migrations/0007_admin.sql) | `admin_users()` and `admin_question_stats()` for the admin panel, and a block on deleting questions that have attempts |
+   | [`0008_leaderboard_privacy.sql`](db/migrations/0008_leaderboard_privacy.sql) | A new `get_leaderboard()` for the public leaderboard: short names ("Vishesh S.") and `is_me` instead of full names and account ids, and no learners with 0 points |
 
-The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0007`.
+The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0008`.
 
 ### 2. Run the app
 
@@ -68,6 +69,13 @@ If everything is set up, the Home page lists five goals (Government, Engineering
 
 If a learner has the site open during a deploy and opens a page that hasn't loaded yet, its old file may be gone; the page shows "Couldn't load this page" and Retry reloads the app.
 
+### 4. Before launch: remove test data
+
+[`db/cleanup/`](db/cleanup/) holds two one-off scripts that delete the content added while testing. Run them by hand in the SQL Editor, only before launch, in this order:
+
+1. [`cleanup_1_preview.sql`](db/cleanup/cleanup_1_preview.sql) changes nothing. It lists what part 2 will delete: questions added after the seed (above Q1054), every problem report, and exams, subjects, topics and formulas that aren't in `seed.sql`. Its last rows list learners, for information only; they are never deleted.
+2. [`cleanup_2_delete.sql`](db/cleanup/cleanup_2_delete.sql) deletes exactly that, in one transaction. Run it only if nothing in the preview is real content you want to keep. If any step fails (for example, a test question that learners have attempted), nothing is deleted. Its last query counts what is left: 7 exams, 17 subjects, 32 topics, 27 formulas, 54 questions and 0 reports.
+
 ## Scripts
 
 | Command           | What it does                         |
@@ -85,7 +93,8 @@ db/
                  0002_catalog_views.sql (topic_catalog, my_topic_progress)
                  0003_auth_debug.sql, 0004_fix_current_user_id.sql
                  0005_my_progress.sql, 0006_search_formulas.sql
-                 0007_admin.sql
+                 0007_admin.sql, 0008_leaderboard_privacy.sql
+  cleanup/       One-off scripts to delete test data before launch
   seed.sql       Exams, subjects, topics, formulas, questions
 src/
   components/
@@ -127,7 +136,7 @@ vercel.json      SPA rewrite and cache headers for Vercel
 | `/revision`      | Revision: bookmarks, or `?tab=mistakes` |
 | `/formulas`      | Formulas    |
 | `/progress`      | Progress    |
-| `/leaderboard`   | Leaderboard: Global, or `?scope=country` / `?scope=state` |
+| `/leaderboard`   | Leaderboard, open to signed-out visitors: Global, or `?scope=country` / `?scope=state` (signed in). Names show as first name and last initial, and learners join once they have points |
 | `/search`        | Search      |
 | `/admin`         | Admin (admins only, loaded on demand): `?tab=overview`, `?tab=questions` (with `q`, `exam`, `status`, `sort`), `?tab=edit` for a new question or `?tab=edit&id=<id>`, `?tab=taxonomy` (exams and topics), `?tab=formulas`, `?tab=reports`, `?tab=users` |
 | `/account`       | Account     |

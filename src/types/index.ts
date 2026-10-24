@@ -344,14 +344,19 @@ export interface AdminUserRow {
   last_active: string | null
 }
 
-/** A row returned by get_leaderboard(). */
+/**
+ * A row returned by get_leaderboard(). The leaderboard is public, so it has
+ * no account id or full name; learners with 0 points aren't listed.
+ */
 export interface LeaderboardRow {
   /** bigint, returned by the Data API as a number. Ties share a rank. */
   rank: number
-  user_id: string
-  full_name: string
+  /** First name and last initial, e.g. "Vishesh S." */
+  display_name: string
   state: string | null
   country: string
-  /** bigint, returned by the Data API as a number. */
+  /** bigint, returned by the Data API as a number. Always above 0. */
   points: number
+  /** True only on the signed-in caller's own row. */
+  is_me: boolean
 }

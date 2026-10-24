@@ -12,12 +12,12 @@ import { ProgressBar } from '../components/ui/ProgressBar'
 import { LoadingLabel, Skeleton } from '../components/ui/Skeleton'
 import type { AsyncResult } from '../hooks/useAsync'
 import { examTopics, findTopic, useExamCatalog, type CatalogExam } from '../hooks/useExamCatalog'
-import { GLOBAL_SCOPE, LEADERBOARD_LIMIT, useLeaderboard } from '../hooks/useLeaderboard'
+import { GLOBAL_SCOPE, notListedMessage, useLeaderboard } from '../hooks/useLeaderboard'
 import { totalsAccuracy, useMyProgress } from '../hooks/useMyProgress'
 import { progressTotals, useTopicProgress, type ProgressByTopic } from '../hooks/useTopicProgress'
 import { CATEGORIES } from '../lib/categories'
 import { plural } from '../lib/format'
-import type { LeaderboardRow, TopicProgressRow } from '../types'
+import type { LeaderboardRow, MyProgressTotals, TopicProgressRow } from '../types'
 
 const gridClass = 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3'
 
@@ -133,7 +133,7 @@ function TodayCard({ userId, profileGoal }: { userId: string; profileGoal: numbe
             Today
           </h2>
           {goal !== null && <GoalBubbles done={today_count} goal={goal} />}
-          <RankLine board={board} userId={userId} />
+          <RankLine board={board} totals={totals} />
         </div>
         <dl className="flex shrink-0 gap-8">
           <div>
@@ -153,7 +153,7 @@ function TodayCard({ userId, profileGoal }: { userId: string; profileGoal: numbe
 }
 
 /** "Rank #N · P points" on the global leaderboard, linking to it. */
-function RankLine({ board, userId }: { board: AsyncResult<LeaderboardRow[]>; userId: string }) {
+function RankLine({ board, totals }: { board: AsyncResult<LeaderboardRow[]>; totals: MyProgressTotals }) {
   if (board.status === 'error') {
     return <LoadError message={`Couldn't load your rank. ${board.error}`} onRetry={board.retry} />
   }
@@ -163,20 +163,14 @@ function RankLine({ board, userId }: { board: AsyncResult<LeaderboardRow[]>; use
       to="/leaderboard"
       className="self-start rounded font-mono text-sm text-pen underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-pen"
     >
-      {rankText(board.data, userId)}
+      {rankText(board.data, totals)}
     </Link>
   )
 }
 
-function rankText(rows: LeaderboardRow[], userId: string) {
-  const me = rows.find((row) => row.user_id === userId)
-  if (me) return me.points > 0 ? `Rank #${me.rank} · ${plural(me.points, 'point')}` : 'Practise to get on the leaderboard'
-  // Missing from a full list whose last learner has points: somewhere below it, maybe with points.
-  const last = rows.at(-1)
-  if (rows.length === LEADERBOARD_LIMIT && last && last.points > 0) {
-    return `You're not in the top ${LEADERBOARD_LIMIT} yet. Keep practising.`
-  }
-  return 'Practise to get on the leaderboard'
+function rankText(rows: LeaderboardRow[], totals: MyProgressTotals) {
+  const me = rows.find((row) => row.is_me)
+  return me ? `Rank #${me.rank} · ${plural(me.points, 'point')}` : notListedMessage(totals)
 }
 
 function TodayCardSkeleton() {

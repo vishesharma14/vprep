@@ -9,7 +9,8 @@ import { LoadError } from '../components/ui/LoadError'
 import { Notice } from '../components/ui/Notice'
 import { LoadingLabel, Skeleton } from '../components/ui/Skeleton'
 import { TabPanel, Tabs } from '../components/ui/Tabs'
-import { GLOBAL_SCOPE, LEADERBOARD_LIMIT, useLeaderboard, type LeaderboardScope } from '../hooks/useLeaderboard'
+import { GLOBAL_SCOPE, notListedMessage, useLeaderboard, type LeaderboardScope } from '../hooks/useLeaderboard'
+import { useMyProgress } from '../hooks/useMyProgress'
 import { cx } from '../lib/cx'
 import { ATTEMPT_POINTS, type LeaderboardRow } from '../types'
 
@@ -23,6 +24,9 @@ const DESCRIPTION =
   `${ATTEMPT_POINTS.independent} solved independently, ${ATTEMPT_POINTS.hint} after a hint, ` +
   `${ATTEMPT_POINTS.revealed} after viewing the answer.`
 
+// The page is public, so get_leaderboard() returns only these short names.
+const NAMES_NOTE = 'Names are shown as first name and last initial.'
+
 const labelClass = 'font-mono text-[0.6875rem] font-medium uppercase tracking-widest text-drop'
 
 // The outer cells line up with the card's padding.
@@ -34,7 +38,15 @@ export function Leaderboard() {
   const { status } = useAuth()
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <PageHeader title="Leaderboard" description={DESCRIPTION} />
+      <PageHeader
+        title="Leaderboard"
+        description={
+          <>
+            {DESCRIPTION}
+            <span className="mt-1 block">{NAMES_NOTE}</span>
+          </>
+        }
+      />
       {/* Which tabs show depends on the session, so wait for it. */}
       {status === 'loading' ? (
         <>
@@ -129,24 +141,28 @@ function Ranking({ scope, place, userId }: { scope: LeaderboardScope; place: str
   if (board.status === 'loading') return <RankingSkeleton />
 
   const rows = board.data
-  if (rows.length === 0) return <NoLearners place={place} />
-  const missing = userId !== null && !rows.some((row) => row.user_id === userId)
 
   return (
     <div className="flex flex-col gap-3">
-      <RankingTable
-        rows={rows}
-        userId={userId}
-        caption={place ? `Leaderboard for ${place}` : 'Global leaderboard'}
-      />
-      {missing && (
-        <p className="text-sm text-ink/70">You're not in the top {LEADERBOARD_LIMIT} yet. Keep practising.</p>
+      {rows.length === 0 ? (
+        <NoLearners place={place} />
+      ) : (
+        <RankingTable rows={rows} caption={place ? `Leaderboard for ${place}` : 'Global leaderboard'} />
       )}
+      {userId !== null && !rows.some((row) => row.is_me) && <NotListed userId={userId} />}
     </div>
   )
 }
 
-function RankingTable({ rows, userId, caption }: { rows: LeaderboardRow[]; userId: string | null; caption: string }) {
+/** Under a ranking that leaves out the signed-in learner: why. */
+function NotListed({ userId }: { userId: string }) {
+  const progress = useMyProgress(userId)
+  // Only a hint, so nothing shows until my_progress has loaded.
+  if (progress.status !== 'ready') return null
+  return <p className="text-sm text-ink/70">{notListedMessage(progress.data.totals)}</p>
+}
+
+function RankingTable({ rows, caption }: { rows: LeaderboardRow[]; caption: string }) {
   const captionId = useId()
   return (
     <Card className="px-0 py-2">
@@ -178,8 +194,9 @@ function RankingTable({ rows, userId, caption }: { rows: LeaderboardRow[]; userI
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <RankingRow key={row.user_id} row={row} you={row.user_id === userId} />
+            {/* Rows have no id and ties share a rank; a new ranking replaces them all. */}
+            {rows.map((row, i) => (
+              <RankingRow key={i} row={row} />
             ))}
           </tbody>
         </table>
@@ -188,14 +205,15 @@ function RankingTable({ rows, userId, caption }: { rows: LeaderboardRow[]; userI
   )
 }
 
-function RankingRow({ row, you }: { row: LeaderboardRow; you: boolean }) {
+function RankingRow({ row }: { row: LeaderboardRow }) {
+  const you = row.is_me
   return (
     <tr className={cx('border-t border-ink/10', you && 'bg-pen/5')}>
       <td className={cx(cellClass, 'text-right font-mono', you && 'shadow-[inset_3px_0_0_var(--color-pen)]')}>
         <RankBadge rank={row.rank} />
       </td>
       <th scope="row" className={cx(cellClass, 'text-left font-normal')}>
-        <span className="break-words font-bold">{row.full_name}</span>
+        <span className="break-words font-bold">{row.display_name}</span>
         {you && <span className="text-pen"> (you)</span>}
       </th>
       <td className={cx(cellClass, 'text-ink/70')}>

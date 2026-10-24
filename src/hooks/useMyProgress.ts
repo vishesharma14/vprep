@@ -3,7 +3,7 @@ import { attemptsRevision, attemptsSettled } from '../lib/attempts'
 import { dbErrorMessage, SESSION_EXPIRED } from '../lib/errors'
 import { neon } from '../lib/neon'
 import { withSessionRecovery } from '../lib/session'
-import type { MyProgress, MyProgressTotals } from '../types'
+import { ATTEMPT_POINTS, type AttemptStatus, type MyProgress, type MyProgressTotals } from '../types'
 import { useAsync, type AsyncResult } from './useAsync'
 import { accuracyPercent } from './useTopicProgress'
 
@@ -48,6 +48,13 @@ export function useMyProgress(userId: string): AsyncResult<MyProgress> {
 /** Correct answers out of graded ones (answers viewed first and skips left out), or null before any. */
 export const totalsAccuracy = (t: MyProgressTotals) =>
   accuracyPercent({ correct: t.independent + t.hint, answered: t.independent + t.hint + t.incorrect })
+
+/**
+ * True once an attempt has earned leaderboard points. get_leaderboard() leaves
+ * out learners with 0 points, so until then the learner isn't listed.
+ */
+export const hasLeaderboardPoints = (t: MyProgressTotals) =>
+  (Object.keys(ATTEMPT_POINTS) as AttemptStatus[]).some((status) => ATTEMPT_POINTS[status] > 0 && t[status] > 0)
 
 /** Attempts solved with no help, out of every attempt except skips; null before any. */
 export function independentPercent(t: MyProgressTotals) {
