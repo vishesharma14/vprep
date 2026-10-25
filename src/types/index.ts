@@ -410,6 +410,33 @@ export interface AdminSimilarQuestionRow extends Pick<Question, 'id' | 'code' | 
   similarity: number
 }
 
+/**
+ * A row returned by admin_question_difficulty() (admins only): every question,
+ * with the level an admin set and what learners' first answers say, as last
+ * fitted by ml/fit_difficulty.py. The fitted fields are null for a question
+ * that had no first answers then.
+ */
+export interface AdminQuestionDifficultyRow {
+  question_id: string
+  code: string
+  body: string
+  status: QuestionStatus
+  topic_name: string
+  exam_name: string
+  set_level: Difficulty
+  /** Null until the question has 20 first answers. */
+  estimated_level: Difficulty | null
+  /** In logits: 0 is a 50% chance for an average learner, higher is harder. */
+  difficulty: number | null
+  std_error: number | null
+  /** First answers used, one per learner. */
+  responses: number | null
+  correct_rate: number | null
+  /** The chance an average learner gets it right, 0–1. */
+  p_average: number | null
+  fitted_at: string | null
+}
+
 /** What admin_embedding_status() returns (admins only). bigints, returned as numbers. */
 export interface EmbeddingStatus {
   /** Every question, of any status. */

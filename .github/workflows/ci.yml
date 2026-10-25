@@ -31,3 +31,18 @@ jobs:
       # Needs no VITE_ variables either: Vite leaves them undefined, and the app
       # only checks for them in the browser (src/lib/neon.ts).
       - run: npm run build
+
+  ml-tests:
+    name: ML tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      # Only what ml/rasch.py and its tests import: no database driver, no PyTorch.
+      - run: pip install numpy scipy pytest
+
+      - run: python -m pytest ml/tests

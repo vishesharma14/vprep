@@ -1,18 +1,31 @@
 import { useId, type ReactNode } from 'react'
+import { useQuestionDifficulty } from '../../hooks/useAdminDifficulty'
 import { useEmbeddingStatus } from '../../hooks/useAdminEmbeddings'
 import type { AdminQuestion } from '../../hooks/useAdminQuestions'
 import { topicPlaces, type CatalogExam } from '../../hooks/useExamCatalog'
 import { cx } from '../../lib/cx'
-import { plural } from '../../lib/format'
+import {
+  difficultySummary,
+  FIT_DIFFICULTY_COMMAND,
+  LEVEL_LABEL,
+  levelTable,
+  LEVELS,
+  MIN_FIRST_ANSWERS,
+  mismatches,
+  type LevelTable,
+  type Mismatch,
+} from '../../lib/difficulty'
+import { firstLine, formatDate, plural } from '../../lib/format'
 import { canPublish } from '../../lib/questions'
 import { EMBED_COMMAND, embeddingCoverage } from '../../lib/similar'
-import type { EmbeddingStatus } from '../../types'
+import type { AdminQuestionDifficultyRow, EmbeddingStatus } from '../../types'
 import { Percent } from '../progress/Percent'
 import { ButtonLink } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { LoadError } from '../ui/LoadError'
 import { ProgressBar } from '../ui/ProgressBar'
 import { LoadingLabel, Skeleton } from '../ui/Skeleton'
+import { Pill } from './StatusPill'
 
 const labelClass = 'font-mono text-[0.6875rem] font-medium uppercase tracking-widest text-drop'
 
@@ -25,7 +38,7 @@ interface AdminOverviewProps {
   questions: AdminQuestion[]
 }
 
-/** Content at a glance: counts, explanation and embedding coverage, and questions per exam. */
+/** Content at a glance: counts, explanation and embedding coverage, the difficulty check, and questions per exam. */
 export function AdminOverview({ exams, questions }: AdminOverviewProps) {
   const count = (status: AdminQuestion['status']) => questions.filter((q) => q.status === status).length
   const openReports = sum(questions, (q) => q.open_reports)
@@ -62,6 +75,8 @@ export function AdminOverview({ exams, questions }: AdminOverviewProps) {
 
       <EmbeddingCoverage />
 
+      <DifficultyCheck />
+
       <QuestionsPerExam exams={exams} questions={questions} />
     </div>
   )
@@ -88,6 +103,20 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
         {children}
       </Card>
     </section>
+  )
+}
+
+/** A script in ml/ to run, and how. `lead` comes first, as a sentence. */
+function RunCommand({ lead, command }: { lead: ReactNode; command: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm">
+        {lead} Run this from the project folder with <code className="font-mono">ml/.venv</code> active, then reload:
+      </p>
+      <pre className="overflow-x-auto rounded-lg bg-ink/5 px-3 py-2 font-mono text-sm">
+        <code>{command}</code>
+      </pre>
+    </div>
   )
 }
 
@@ -131,19 +160,187 @@ function CoverageDetails({ status }: { status: EmbeddingStatus }) {
         are found from these.
       </p>
       {needsRun ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm">
-            {behind.join(' and ')}. Run this from the project folder with <code className="font-mono">ml/.venv</code>{' '}
-            active, then reload:
-          </p>
-          <pre className="overflow-x-auto rounded-lg bg-ink/5 px-3 py-2 font-mono text-sm">
-            <code>{EMBED_COMMAND}</code>
-          </pre>
-        </div>
+        <RunCommand lead={`${behind.join(' and ')}.`} command={EMBED_COMMAND} />
       ) : (
         <p className="text-sm text-ok">Every question is up to date.</p>
       )}
     </>
+  )
+}
+
+/** The level set on each question against the one learners' first answers give it. Loads its own data. */
+function DifficultyCheck() {
+  const difficulty = useQuestionDifficulty()
+  return (
+    <Section title="Difficulty check">
+      {difficulty.status === 'loading' ? (
+        <>
+          <LoadingLabel>Loading the difficulty check…</LoadingLabel>
+          <Skeleton className="h-9 w-20" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </>
+      ) : difficulty.status === 'error' ? (
+        <LoadError message={`Couldn't load the difficulty check. ${difficulty.error}`} onRetry={difficulty.retry} />
+      ) : (
+        <DifficultyDetails rows={difficulty.data} />
+      )}
+    </Section>
+  )
+}
+
+/** Mismatches listed, biggest first. */
+const MISMATCHES_SHOWN = 5
+
+const REFIT_LEAD = 'The estimates only change when the fit runs again.'
+
+function DifficultyDetails({ rows }: { rows: AdminQuestionDifficultyRow[] }) {
+  const { fitted, withLevel, firstAnswers, fittedAt } = difficultySummary(rows)
+  const lastFit = fittedAt
+    ? `Last fitted ${formatDate(fittedAt)}, from ${plural(firstAnswers, 'first answer')} to ${plural(fitted, 'question')}.`
+    : 'Not fitted yet.'
+
+  if (withLevel === 0) {
+    return (
+      <>
+        <p className="text-sm text-ink/70">
+          The data says how hard each question really is from learners' first answers to it: their first try, before
+          they've seen the answer. A question needs {MIN_FIRST_ANSWERS} first answers to get a level, and none has that
+          many yet. {lastFit}
+        </p>
+        <RunCommand lead={REFIT_LEAD} command={FIT_DIFFICULTY_COMMAND} />
+      </>
+    )
+  }
+
+  const found = mismatches(rows)
+  return (
+    <>
+      <p className="font-display text-3xl font-bold tabular-nums">
+        {found.length}
+        <span className="ml-2 text-base font-medium text-ink/70">{found.length === 1 ? 'mismatch' : 'mismatches'}</span>
+      </p>
+      <p className="text-sm text-ink/70">
+        {found.length} of {plural(withLevel, 'question')} with a level from learners' first answers{' '}
+        {found.length === 1 ? 'has' : 'have'} a different level set. A question gets one at {MIN_FIRST_ANSWERS} first
+        answers. {lastFit}
+      </p>
+      <LevelCrosstab table={levelTable(rows)} />
+      {found.length > 0 && <MismatchList mismatches={found.slice(0, MISMATCHES_SHOWN)} />}
+      <RunCommand lead={REFIT_LEAD} command={FIT_DIFFICULTY_COMMAND} />
+    </>
+  )
+}
+
+const crossCellClass = 'px-3 py-2 text-right first:pl-0 last:pr-0'
+
+/** Questions by the level set (rows) and the level the data gives (columns). */
+function LevelCrosstab({ table }: { table: LevelTable }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[24rem] text-sm">
+        <caption className="sr-only">Questions by the level set and the level learners' first answers give</caption>
+        <colgroup>
+          <col />
+        </colgroup>
+        <colgroup span={LEVELS.length} />
+        <colgroup>
+          <col />
+        </colgroup>
+        <thead className={labelClass}>
+          <tr>
+            <td />
+            <th scope="colgroup" colSpan={LEVELS.length} className="px-3 pb-1 text-center font-medium">
+              Data says
+            </th>
+            <td />
+          </tr>
+          <tr>
+            <th scope="col" className={cx(crossCellClass, 'text-left font-medium')}>
+              Set
+            </th>
+            {LEVELS.map((level) => (
+              <th key={level} scope="col" className={cx(crossCellClass, 'font-medium')}>
+                {LEVEL_LABEL[level]}
+              </th>
+            ))}
+            <th scope="col" className={cx(crossCellClass, 'font-medium')}>
+              No level yet
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {LEVELS.map((set) => (
+            <tr key={set} className="border-t border-ink/10">
+              <th scope="row" className={cx(crossCellClass, 'text-left font-medium')}>
+                {LEVEL_LABEL[set]}
+              </th>
+              {LEVELS.map((estimated) => {
+                const count = table[set][estimated]
+                return (
+                  <td
+                    key={estimated}
+                    className={cx(
+                      crossCellClass,
+                      'font-mono tabular-nums',
+                      estimated === set ? 'text-ok' : count > 0 ? 'font-bold text-bad' : 'text-ink/60',
+                    )}
+                  >
+                    {count}
+                  </td>
+                )
+              })}
+              <td className={cx(crossCellClass, 'font-mono tabular-nums text-ink/60')}>{table[set].none}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+const percentOf = (share: number | null) => Math.round((share ?? 0) * 100)
+
+function MismatchList({ mismatches }: { mismatches: Mismatch[] }) {
+  const headingId = useId()
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 id={headingId} className="font-bold">
+        Biggest mismatches
+      </h3>
+      <ul aria-labelledby={headingId} className="flex flex-col">
+        {mismatches.map(({ row, estimated, gap }) => (
+          <li
+            key={row.question_id}
+            className="flex items-start gap-3 border-t border-ink/10 py-3 first:border-t-0 first:pt-0 last:pb-0"
+          >
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <span className="font-mono text-sm font-medium">{row.code}</span>
+                <Pill tone={gap > 1 ? 'bad' : 'warn'}>
+                  Set {row.set_level}, data says {estimated}
+                </Pill>
+              </div>
+              <p className="line-clamp-2 break-words text-sm">{firstLine(row.body)}</p>
+              <p className="text-xs text-ink/60">
+                {row.exam_name} · {row.topic_name} · {plural(row.responses ?? 0, 'first answer')},{' '}
+                {percentOf(row.correct_rate)}% right · an average learner gets it right {percentOf(row.p_average)}% of
+                the time
+              </p>
+            </div>
+            <ButtonLink
+              to={{ search: `?tab=edit&id=${row.question_id}` }}
+              variant="secondary"
+              size="sm"
+              aria-label={`Edit ${row.code}`}
+              className="shrink-0"
+            >
+              Edit
+            </ButtonLink>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -199,7 +396,7 @@ export function AdminOverviewSkeleton() {
           </Card>
         ))}
       </div>
-      {[0, 1, 2].map((i) => (
+      {[0, 1, 2, 3].map((i) => (
         <Card key={i} className="flex flex-col gap-4">
           <Skeleton className="h-6 w-48" />
           {Array.from({ length: 3 }, (_, j) => (

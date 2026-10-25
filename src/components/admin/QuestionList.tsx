@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
+import { useQuestionDifficulty } from '../../hooks/useAdminDifficulty'
 import { deleteQuestion, setQuestionStatus, type AdminQuestion } from '../../hooks/useAdminQuestions'
 import { topicPlaces, type CatalogExam, type TopicPlace } from '../../hooks/useExamCatalog'
 import { accuracyPercent } from '../../hooks/useTopicProgress'
 import { cx } from '../../lib/cx'
+import { dataSaysLabel, needsAnswersNote } from '../../lib/difficulty'
 import { NETWORK_ERROR } from '../../lib/errors'
 import { firstLine, plural } from '../../lib/format'
 import { fetchFormulas } from '../../lib/formulas'
 import { downloadCsv, exportFileName, questionsCsv } from '../../lib/questionCsv'
 import { canPublish, QUESTION_STATUS_LABEL } from '../../lib/questions'
 import { matchesEveryWord, searchWords } from '../../lib/search'
-import type { QuestionStatus } from '../../types'
+import type { AdminQuestionDifficultyRow, QuestionStatus } from '../../types'
 import { Percent } from '../progress/Percent'
 import { Button, ButtonLink } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { SelectField, TextField } from '../ui/Field'
+import { LoadError } from '../ui/LoadError'
 import { Notice } from '../ui/Notice'
 import { LoadingLabel, Skeleton } from '../ui/Skeleton'
 import { ScrollTable } from './ScrollTable'
@@ -83,6 +86,11 @@ export function QuestionList({ exams, questions }: QuestionListProps) {
   const [exporting, setExporting] = useState(false)
   const noticeRef = useRef<HTMLDivElement>(null)
   const places = useMemo(() => topicPlaces(exams), [exams])
+  const difficulty = useQuestionDifficulty()
+  const estimates = useMemo(
+    () => new Map((difficulty.data ?? []).map((row) => [row.question_id, row])),
+    [difficulty.data],
+  )
 
   // Filtering is instant; the address follows once typing pauses.
   const query = params.get('q') ?? ''
@@ -233,6 +241,13 @@ export function QuestionList({ exams, questions }: QuestionListProps) {
         </div>
       </div>
 
+      {difficulty.status === 'error' && (
+        <LoadError
+          message={`Couldn't load what learners' answers say about difficulty. ${difficulty.error}`}
+          onRetry={difficulty.retry}
+        />
+      )}
+
       {rows.length === 0 ? (
         <Card>
           <p className="text-ink/70">
@@ -243,6 +258,7 @@ export function QuestionList({ exams, questions }: QuestionListProps) {
         <QuestionTable
           rows={rows}
           places={places}
+          estimates={difficulty.status === 'ready' ? estimates : difficulty.status}
           highlight={saved?.id ?? null}
           listSearch={location.search}
           onNotice={announce}
@@ -254,9 +270,16 @@ export function QuestionList({ exams, questions }: QuestionListProps) {
 
 const rowId = (questionId: string) => `admin-question-${questionId}`
 
+/** What learners' first answers say about each question's difficulty, by id, or why that isn't known yet. */
+type Estimates = ReadonlyMap<string, AdminQuestionDifficultyRow> | 'loading' | 'error'
+
+/** One question's estimate: undefined for a question added since the estimates loaded. */
+type Estimate = AdminQuestionDifficultyRow | undefined | 'loading' | 'error'
+
 interface QuestionTableProps {
   rows: AdminQuestion[]
   places: ReadonlyMap<string, TopicPlace>
+  estimates: Estimates
   /** The question just saved, shaded. */
   highlight: string | null
   /** The list's query string, so the editor can come back to it. */
@@ -264,9 +287,9 @@ interface QuestionTableProps {
   onNotice: (notice: ListNotice, focus?: boolean) => void
 }
 
-function QuestionTable({ rows, places, highlight, listSearch, onNotice }: QuestionTableProps) {
+function QuestionTable({ rows, places, estimates, highlight, listSearch, onNotice }: QuestionTableProps) {
   return (
-    <ScrollTable caption="Questions" className="min-w-[60rem]">
+    <ScrollTable caption="Questions" className="min-w-[68rem]">
       <thead>
         <tr className={labelClass}>
           <th scope="col" className={cx(headClass, 'text-left')}>
@@ -280,6 +303,9 @@ function QuestionTable({ rows, places, highlight, listSearch, onNotice }: Questi
           </th>
           <th scope="col" className={cx(headClass, 'text-left')}>
             Difficulty
+          </th>
+          <th scope="col" className={cx(headClass, 'text-left')}>
+            Data says
           </th>
           <th scope="col" className={cx(headClass, 'text-left')}>
             Status
@@ -304,6 +330,7 @@ function QuestionTable({ rows, places, highlight, listSearch, onNotice }: Questi
             key={q.id}
             question={q}
             place={places.get(q.topic_id)}
+            estimate={typeof estimates === 'string' ? estimates : estimates.get(q.id)}
             highlighted={q.id === highlight}
             listSearch={listSearch}
             onNotice={onNotice}
@@ -324,12 +351,13 @@ type RowState =
 interface QuestionRowProps {
   question: AdminQuestion
   place: TopicPlace | undefined
+  estimate: Estimate
   highlighted: boolean
   listSearch: string
   onNotice: (notice: ListNotice, focus?: boolean) => void
 }
 
-function QuestionRow({ question, place, highlighted, listSearch, onNotice }: QuestionRowProps) {
+function QuestionRow({ question, place, estimate, highlighted, listSearch, onNotice }: QuestionRowProps) {
   const [row, setRow] = useState<RowState>({ kind: 'idle' })
   const actionsRef = useRef<HTMLDivElement>(null)
   const noteId = useId()
@@ -398,6 +426,7 @@ function QuestionRow({ question, place, highlighted, listSearch, onNotice }: Que
         )}
       </td>
       <td className={cx(cellClass, 'capitalize')}>{question.difficulty}</td>
+      <DataSaysCell estimate={estimate} />
       <td className={cellClass}>
         <StatusPill status={question.status} />
       </td>
@@ -508,6 +537,37 @@ function QuestionRow({ question, place, highlighted, listSearch, onNotice }: Que
         </div>
       </td>
     </tr>
+  )
+}
+
+/** The level learners' first answers give the question, or a dash until it has enough of them. */
+function DataSaysCell({ estimate }: { estimate: Estimate }) {
+  if (estimate === 'loading') {
+    return (
+      <td className={cellClass}>
+        <Skeleton className="h-4 w-24" />
+      </td>
+    )
+  }
+  const loaded = estimate === 'error' ? undefined : estimate
+  // A level is only ever stored with its p_average.
+  if (loaded?.estimated_level && loaded.p_average !== null) {
+    return (
+      <td
+        className={cx(cellClass, 'whitespace-nowrap')}
+        title={`An average learner gets it right ${Math.round(loaded.p_average * 100)}% of the time`}
+      >
+        {dataSaysLabel(loaded)}
+      </td>
+    )
+  }
+  // A failed load is explained above the table.
+  const note = estimate === 'error' ? 'Not loaded' : needsAnswersNote(loaded?.responses)
+  return (
+    <td className={cellClass} title={estimate === 'error' ? undefined : note}>
+      <span aria-hidden>—</span>
+      <span className="sr-only">{note}</span>
+    </td>
   )
 }
 

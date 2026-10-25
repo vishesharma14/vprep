@@ -73,8 +73,8 @@ Most practice apps score a right answer the same way whether you worked it out, 
 
 ### For admins
 
-- **Overview**: questions by status, open reports, explanation coverage, embedding coverage (with the command to run when some are missing or out of date) and questions per exam.
-- **Question bank**: search, filter by exam and status, and sort by most reported or lowest accuracy to find questions that are wrong or too hard.
+- **Overview**: questions by status, open reports, explanation coverage, embedding coverage (with the command to run when some are missing or out of date), a difficulty check (the level set on each question against the one learners' answers give it) and questions per exam.
+- **Question bank**: search, filter by exam and status, and sort by most reported or lowest accuracy to find questions that are wrong or too hard. A "Data says" column shows each question's difficulty as estimated from learners' first answers (see [Data-driven question difficulty](#data-driven-question-difficulty)).
 - **Question editor** with a preview of the answered question. It checks the same rules as the database, and moves questions through draft, in review and published. A saved question also lists its 5 nearest questions in any exam and status, with 90% similar or more marked as a possible duplicate.
 - **CSV import and export**: import up to 500 questions at once, checked row by row and saved all or nothing; export the whole bank. See [Importing and exporting questions](#importing-and-exporting-questions).
 - **Exams, subjects and topics** as a tree, and a **formula manager**.
@@ -113,7 +113,7 @@ The live site has **7 exams, 17 subjects, 32 topics, 216 questions and 27 formul
 | Sign-in    | Neon Auth: email and password, email verification and password reset by code |
 | Data       | Neon Data API (PostgREST-compatible), called from the browser with `@neondatabase/neon-js` |
 | Database   | [Neon](https://neon.tech) Postgres: Row Level Security, SQL functions, views and triggers; pgvector for embeddings |
-| ML         | Python 3 scripts run offline: sentence-transformers (`all-MiniLM-L6-v2`) for embeddings, scikit-learn for the TF-IDF baseline |
+| ML         | Python 3 scripts run offline: sentence-transformers (`all-MiniLM-L6-v2`) for embeddings, scikit-learn for the TF-IDF baseline, NumPy and SciPy for the Rasch difficulty model, pytest |
 | CSV        | Papa Parse |
 | Hosting    | Vercel, with Vercel Web Analytics |
 | Quality    | Vitest, oxlint, GitHub Actions |
@@ -132,13 +132,13 @@ flowchart LR
   User -->|"queries and RPC calls<br/>with the JWT"| API["Neon Data API"]
   API -->|"as role anonymous or authenticated"| PG[("Postgres<br/>RLS on every table")]
   Auth -->|"users in the neon_auth schema"| PG
-  ML["ml/ scripts<br/>(Python, run offline)"] -->|"question embeddings,<br/>as the database owner"| PG
+  ML["ml/ scripts<br/>(Python, run offline)"] -->|"embeddings and difficulty<br/>estimates, as the database owner"| PG
 ```
 
 1. Vercel serves the built app. Every path outside `/assets/` gets `index.html`, so deep links work.
 2. Neon Auth signs learners in and issues a JWT. Signed-out visitors get an anonymous token (`allowAnonymous: true` in [`src/lib/neon.ts`](src/lib/neon.ts)).
 3. The Data API checks the JWT and runs each query as the `anonymous` or `authenticated` role. Row Level Security policies, table grants and SQL functions decide what comes back.
-4. The embedding script in [`ml/`](ml/) runs on a developer's machine, not in the app. It writes one vector per question, and the app reads the nearest ones through SQL functions.
+4. The scripts in [`ml/`](ml/) run on a developer's machine, not in the app. One writes a vector per question, and the app reads the nearest ones through SQL functions; another writes each question's estimated difficulty, which the admin panel reads.
 
 ## Security and data design
 
@@ -166,11 +166,13 @@ flowchart LR
 | [`0009_similar_questions.sql`](db/migrations/0009_similar_questions.sql) | The pgvector extension, the `question_embeddings` table (384-dimensional vectors, HNSW index), `similar_questions()` for learners, and `admin_similar_questions()` and `admin_embedding_status()` for the admin panel |
 | [`0010_study_plan.sql`](db/migrations/0010_study_plan.sql) | `recommend_topics()`, the "What to study today" ranking for Home and Progress (signed in only) |
 | [`0011_study_plan_exact_cutoffs.sql`](db/migrations/0011_study_plan_exact_cutoffs.sql) | A fix to `recommend_topics()`: mastery and score are worked out in exact `numeric`, so a mastery of exactly 0.7 gets the 7-day interval (it was rounded to `real` first, just under 0.7) |
+| [`0012_question_difficulty.sql`](db/migrations/0012_question_difficulty.sql) | The `question_difficulty` table (one Rasch estimate per question, written by `ml/fit_difficulty.py`, readable by no app role) and `admin_question_difficulty()`, which lists every question with the level set next to the estimated one |
 
 ## Quality
 
-- **292 unit tests** in 22 files, run with [Vitest](https://vitest.dev). They sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it.
-- **GitHub Actions** ([`ci.yml`](.github/workflows/ci.yml)) runs lint, tests and the production build on every push and pull request to `main`.
+- **303 unit tests** in 23 files, run with [Vitest](https://vitest.dev). They sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it.
+- **12 Python tests** for the difficulty model, run with pytest ([`ml/tests/`](ml/tests/)): parameter recovery on a fixed-seed simulation, the gradient against finite differences, and the level rules. They need no database.
+- **GitHub Actions** ([`ci.yml`](.github/workflows/ci.yml)) runs lint, tests and the production build on every push and pull request to `main`, and the Python tests in a second job that installs only NumPy, SciPy and pytest.
 - **oxlint** with the React, TypeScript and oxc plugins ([`.oxlintrc.json`](.oxlintrc.json)).
 - **TypeScript** type-checks the whole app as part of `npm run build`.
 
@@ -211,10 +213,11 @@ Do this once per Neon project, in the [Neon Console](https://console.neon.tech),
 2. **Enable the Data API.** Open **Data API**, tick **Use Neon Auth**, and click **Enable Data API**.
 3. **Create the schema.** Open the **SQL Editor**, paste in all of [`db/migrations/0001_schema.sql`](db/migrations/0001_schema.sql) and run it. It runs in one transaction, so if it fails nothing is created and you can run it again after fixing the problem.
 4. **Load the seed data.** Run all of [`db/seed.sql`](db/seed.sql): 7 exams with their subjects and topics, 27 formulas and 54 published questions. Run it only once: a second run fails on duplicate slugs and changes nothing.
-5. **Run migrations 0002–0011**, each file in full, once, in order (see [Migrations](#migrations)), then refresh the schema cache (see below). `0009` turns on the pgvector extension, which Neon has built in.
+5. **Run migrations 0002–0012**, each file in full, once, in order (see [Migrations](#migrations)), then refresh the schema cache (see below). `0009` turns on the pgvector extension, which Neon has built in.
 6. **Embed the questions**, for similar questions: see [`ml/README.md`](ml/README.md). Until this runs, learners get no similar questions and the admin Overview shows every question as missing an embedding.
+7. **Fit question difficulty** with `ml/fit_difficulty.py` once learners have answered, and again from time to time. Until then the admin panel shows no estimates.
 
-The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0011`, then `ml/embed_questions.py`.
+The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0012`, then `ml/embed_questions.py` (and later `ml/fit_difficulty.py`).
 
 > [!IMPORTANT]
 > **Refresh the schema cache after every migration**, including `0001` and any you run later: in the Neon Console open **Data API** and click **Refresh schema cache**. Until you do, the Data API doesn't know about new or changed functions, and calling one fails with "Could not find the function ... in the schema cache".
@@ -260,7 +263,7 @@ An exported file has a `code` column first, which import ignores, and a UTF-8 BO
 
 ## Machine learning
 
-Two features learn from the question bank and from each learner's answers: similar questions, from sentence embeddings, and a study plan, from a scoring model over the learner's attempt history.
+Three features learn from the question bank and from learners' answers: similar questions, from sentence embeddings; a study plan, from a scoring model over each learner's attempt history; and question difficulty, from an item response model over everyone's first answers.
 
 ### Similar questions with embeddings
 
@@ -305,13 +308,47 @@ Days are counted in the browser's time zone, the same one the Progress page uses
 
 **The weights are set by hand**, not learned: 0.5, 0.3 and 0.2, the 0.6 credit for a hint, and the 1/3/7/14-day intervals are reasonable starting points. With enough attempt history they could be fitted instead, for example by training a model to predict whether a learner's next answer in a topic will be correct from mastery, days since practice and open mistakes, and ranking topics by the predicted chance of a wrong answer. It could be checked offline like similar questions: hold out each learner's latest answers and compare against the hand-set score.
 
+### Data-driven question difficulty
+
+Admins set each question's difficulty by hand. VPrep checks those levels against how learners actually do, with a Rasch model (one-parameter item response theory) fitted offline by [`ml/fit_difficulty.py`](ml/fit_difficulty.py).
+
+**The model.** Each learner has an ability θ and each question a difficulty b, both in logits:
+
+```text
+P(learner u answers question q correctly) = σ(θ_u − b_q)        σ(x) = 1 / (1 + e^(−x))
+```
+
+Because ability is in the model, difficulty is comparable across learners: an easy question answered mostly by weaker learners isn't mistaken for a hard one, as it would be by percent correct alone.
+
+**Fitting.** [`ml/rasch.py`](ml/rasch.py) finds the MAP estimate, the most likely abilities and difficulties given the answers and the priors, with SciPy's L-BFGS and an analytic gradient (checked against finite differences in the tests).
+
+- **Priors:** ability ~ N(0, 1), difficulty ~ N(0, 2²). The ability prior fixes the scale, so a difficulty of 0 means an average learner has a 50% chance, and keeps a learner or question with all-right or all-wrong answers from running off to infinity. The difficulty prior is wider, so the data decides.
+- **Standard error:** 1 / √(Σ p(1 − p) + 1/2²), summed over the question's answers: the curvature of the posterior in b, with abilities held at their estimates.
+- **p_average** = σ(−b): the chance an average learner gets it right.
+
+**Why first answers only.** For each learner and question, only the first attempt counts: solved alone is 1, wrong or revealed is 0. A first attempt with a hint or skipped is left out, and not replaced by the next one. Every attempt is followed by the correct answer and its explanation (in the feedback, or on the summary at the end of the session, skipped questions included), so a second attempt measures whether the learner remembers the explanation, not how hard the question is. Counting it would make questions look easier the more they are practised.
+
+**Levels.** A question with at least 20 first answers gets one: **easy** if p_average ≥ 0.7, **hard** below 0.4, **medium** in between. With fewer it gets none: at 20 answers the standard error is still about 0.5 logits. The admin Questions tab shows a "Data says" column ("Hard · 40 answers", or "—" until a question has 20), and the Overview's **Difficulty check** card shows a set-vs-estimated table, the number of mismatches and the biggest ones (two levels apart first), each linking to the editor. The script replaces every row of `question_difficulty` ([`0012`](db/migrations/0012_question_difficulty.sql)) in one transaction, with model `rasch-map-v1`; `--dry-run` prints the same summary without writing.
+
+**Does it work?** There is too little real data to say yet, so [`ml/simulate_difficulty.py`](ml/simulate_difficulty.py) checks parameter recovery on simulated learners: 216 questions with the real bank's set levels (121 easy, 85 medium, 10 hard), true difficulties drawn around −1, 0 and +1 logits for easy, medium and hard (sd 0.5), abilities from N(0, 1), and every learner answering a random 30% of the questions. Averaged over 5 seeds:
+
+| Learners | First answers per question | Pearson r | Spearman ρ | RMSE | With a level | Level accuracy | Mean SE | 95% coverage |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 30 | 9.0 | 0.702 | 0.690 | 0.786 | 0.0% | — | 0.765 | 94.4% |
+| 100 | 30.1 | 0.871 | 0.871 | 0.474 | 99.2% | 71.7% | 0.427 | 92.2% |
+| 300 | 90.3 | **0.949** | **0.944** | 0.273 | 100.0% | **83.2%** | 0.245 | 91.9% |
+
+Level accuracy is the share of questions with a level that get the level their true difficulty gives. The 95% intervals cover a little less than 95% because the standard error treats the abilities as known. And because levels and true difficulty overlap in the simulation, even the exact difficulties give only 70% of questions their set level: a mismatch is a reason to look at a question, not proof that its level is wrong. Details: [`ml/difficulty_results.md`](ml/difficulty_results.md).
+
+**Limitation: it needs real data.** In October 2026 the live site has one learner with 11 usable first answers, so the fit runs but no question has a level yet. By the simulation, about 100 learners each answering a third of the bank would give nearly every question one, with about 72% of levels right; 300 would get about 83%. The model also gives each learner one ability across every exam and topic, which fitting each exam separately would relax once there are answers enough.
+
 ## Project structure
 
 ```
 .github/
-  workflows/     ci.yml: lint, test and build on push and pull request
+  workflows/     ci.yml: lint, test and build, and the ML tests, on push and pull request
 db/
-  migrations/    0001_schema.sql to 0011_study_plan_exact_cutoffs.sql, run in order
+  migrations/    0001_schema.sql to 0012_question_difficulty.sql, run in order
   cleanup/       One-off pre-launch scripts. Never run them again
   seed.sql       Exams, subjects, topics, formulas, the first 54 questions
 docs/
@@ -320,6 +357,10 @@ ml/              Python, run offline (own venv in ml/.venv, settings in ml/.env)
   embed_questions.py      Embeds new and changed questions into question_embeddings
   evaluate_similarity.py  Precision@3 of the embeddings vs TF-IDF, written to results.md
   common.py               Database connection and the text that gets embedded
+  rasch.py                The Rasch model and its MAP fit (numpy and scipy only)
+  fit_difficulty.py       Fits it to first answers and replaces question_difficulty
+  simulate_difficulty.py  Parameter recovery on simulated learners, written to difficulty_results.md
+  tests/                  pytest tests for rasch.py
 scripts/
   og-image.html  Template for public/og-image.png, the link preview image
   screenshots.mjs  Takes the README screenshots with headless Chrome
@@ -345,6 +386,7 @@ src/
                  questionCsv.ts (CSV import and export), questions.ts,
                  taxonomy.ts and formulaForm.ts (the database's rules, checked
                  in the forms), similar.ts (similarity and embedding coverage),
+                 difficulty.ts (estimated levels and mismatches),
                  studyPlan.ts (the reason shown for each study-plan topic),
                  search.ts, reports.ts, format.ts and helpers
   types/         One interface per table, view and function result,
@@ -354,7 +396,7 @@ src/
   hooks/         Data hooks: useExamCatalog, useTopicProgress, useMyProgress,
                  useStudyPlan, usePracticeSet, useSimilarQuestions, useBookmarks,
                  useLeaderboard, useSearchQuestions, useAdminQuestions,
-                 useAdminCatalog, useAdminEmbeddings, …
+                 useAdminCatalog, useAdminEmbeddings, useAdminDifficulty, …
   test/          Test setup (Neon client stand-in) and fixtures
   App.tsx        Router; every page except Home is loaded on demand
   index.css      Tailwind import + design tokens
@@ -416,10 +458,10 @@ Pages that need sign-in are captured by hand at 1440 × 900 and saved under the 
 ## Known limitations and roadmap
 
 - **Answers are checked in the browser.** Each question is downloaded with its correct option, and the app works out the status before saving it. The database rejects a status that doesn't match the option chosen, but it can't tell whether someone read the answer from the network response first. **Planned:** grade answers on the server, with a function that takes the chosen option and returns the result, and stop sending `answer_index` with unanswered questions.
-- **Embeddings are updated by hand.** A new or edited question gets no similar questions (and its old text is still what's compared) until someone runs `ml/embed_questions.py`; the admin Overview shows when that's due. **Planned:** run it on a schedule, for example a GitHub Actions job with the connection string as a secret.
-- **Next for the machine learning layer** (similar questions and the study plan are done, above):
+- **Embeddings and difficulty estimates are updated by hand.** A new or edited question gets no similar questions (and its old text is still what's compared) until someone runs `ml/embed_questions.py`; the admin Overview shows when that's due. Difficulty estimates likewise stay as they were at the last `ml/fit_difficulty.py`. **Planned:** run both on a schedule, for example a GitHub Actions job with the connection string as a secret.
+- **Next for the machine learning layer** (similar questions, the study plan and difficulty estimates are done, above):
   - **Learned study-plan weights**, fitted to how learners actually do on their next answer in a topic instead of set by hand.
-  - **Data-driven difficulty**, set from how learners actually do on each question instead of by hand.
+  - **Adaptive practice.** The Rasch fit puts learners and questions on one scale, so practice could pick questions a learner has about a 70% chance of getting right, once there are enough answers to trust the estimates.
 
 ## Author
 
