@@ -15,7 +15,7 @@ export const PROGRESS_DAYS = 14
 let cached: { userId: string; revision: number; progress: MyProgress } | undefined
 
 /** The browser's time zone, e.g. "Asia/Kolkata". Undefined leaves the database's default. */
-function browserTimeZone() {
+export function browserTimeZone() {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
   } catch {

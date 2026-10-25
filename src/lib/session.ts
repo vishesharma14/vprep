@@ -92,14 +92,14 @@ interface DbError {
   message?: string
 }
 
-/** ensure_profile and my_progress raise these when the database sees no signed-in user. */
-const NO_USER = ['Sign in before creating a profile', 'Sign in to see your progress']
+/** ensure_profile, my_progress and recommend_topics raise these when the database sees no signed-in user. */
+const NO_USER = ['Sign in before creating a profile', 'Sign in to see your progress', 'Sign in to get a study plan']
 
 /**
  * True when a signed-in request failed because the database didn't accept the
- * user: ensure_profile or my_progress found no user, row-level security or a
- * missing grant blocked a write (42501), the Data API rejected the JWT
- * (PGRST3xx), or 401.
+ * user: ensure_profile, my_progress or recommend_topics found no user,
+ * row-level security or a missing grant blocked a write (42501), the Data API
+ * rejected the JWT (PGRST3xx), or 401.
  */
 export function isAuthRejected(error: DbError | null | undefined, status?: number) {
   if (!error) return false

@@ -36,10 +36,11 @@ Most practice apps score a right answer the same way whether you worked it out, 
 - **Similar questions** after a wrong answer or a revealed one: up to 3 published questions from the same exam that are closest in meaning, found with sentence embeddings (see [Similar questions with embeddings](#similar-questions-with-embeddings)). Questions you have already solved are left out, and **Practise these** starts a set of exactly those.
 - **Practise as a guest**, with no account. Signing in saves every answer.
 - **Timed tests**: 5, 10, 15 or all questions, picked at random, at 45, 60 or 90 seconds each. A refresh resumes the test with the same deadline. Answers and explanations appear after you submit.
+- **What to study today**: Home suggests 3 topics to practise next and Progress shows 5, each with the reason it was picked ("2 mistakes to fix", "Last practised 9 days ago, time to review") and a Practise button. See [What to study today](#what-to-study-today).
 - **Revision**: bookmarks in named lists, and a mistakes notebook with "Practise all open mistakes".
 - **Formulas** grouped by subject, searchable, each linked to the questions that use it.
 - **Search** every published question. Every word must match, partial words work ("prob" finds "probability"), and results can be filtered by exam, difficulty and type (practice or previous year), then practised as a set.
-- **Progress**: how you solved your questions, today against your daily goal, current and best streak in your time zone, the last 14 days, accuracy by subject, and "Needs work" and "Strong topics" lists.
+- **Progress**: how you solved your questions, today against your daily goal, current and best streak in your time zone, the last 14 days, accuracy by subject, a study plan with mastery bars, and "Needs work" and "Strong topics" lists.
 - **Leaderboard**: global or by country for everyone, and by state once signed in.
 - **Report a problem** with any question (wrong answer, unclear question or explanation, typo).
 - **Account**: sign up with email and password, verify the email with a code, reset a forgotten password by code, and set your name, state and daily goal.
@@ -142,7 +143,7 @@ flowchart LR
 ## Security and data design
 
 - **Row Level Security on every table.** All 11 tables have RLS turned on, with table grants as a second lock. Anyone can read exams, subjects, topics, formulas and **published** questions; drafts are admin-only. Attempts, bookmarks and reports are visible only to their owner (and admins). `question_embeddings` has no policies and no grants at all: only the owner (the embedding script) and the similar-question functions read it.
-- **`SECURITY DEFINER` helpers, kept narrow.** `current_user_id()`, `is_admin()`, `is_active_user()`, `ensure_profile()`, `get_leaderboard()`, `admin_users()`, `admin_question_stats()`, `similar_questions()`, `admin_similar_questions()` and `admin_embedding_status()` run as the owner, with `search_path` set to `''`. The admin functions raise "Admins only" for anyone else, and `similar_questions()` only ever returns published questions. Views and the progress and search functions run with the caller's permissions, so RLS still applies.
+- **`SECURITY DEFINER` helpers, kept narrow.** `current_user_id()`, `is_admin()`, `is_active_user()`, `ensure_profile()`, `get_leaderboard()`, `admin_users()`, `admin_question_stats()`, `similar_questions()`, `admin_similar_questions()`, `admin_embedding_status()` and `recommend_topics()` run as the owner, with `search_path` set to `''`. The admin functions raise "Admins only" for anyone else, `similar_questions()` only ever returns published questions, and `recommend_topics()` is for signed-in learners only and reads nobody's attempts but the caller's. Views and the progress and search functions run with the caller's permissions, so RLS still applies.
 - **Insert-only attempts.** Learners can insert and read their own attempts, never update or delete them. The `validate_attempt()` trigger allows attempts only on published questions, checks that a correct status has the correct option and an incorrect one a wrong option, and sets `created_at` itself.
 - **Protected roles.** A trigger stops learners from changing their own role or suspension. Suspended accounts can't save attempts or file reports.
 - **Leaderboard privacy.** The public leaderboard shows a short name ("Vishesh S.") and an `is_me` flag instead of full names and account ids, and leaves out learners with no points and suspended accounts (migration 0008).
@@ -163,10 +164,12 @@ flowchart LR
 | [`0007_admin.sql`](db/migrations/0007_admin.sql) | `admin_users()` and `admin_question_stats()` for the admin panel, and a block on deleting questions that have attempts |
 | [`0008_leaderboard_privacy.sql`](db/migrations/0008_leaderboard_privacy.sql) | A new `get_leaderboard()` for the public leaderboard: short names and `is_me` instead of full names and account ids, and no learners with 0 points |
 | [`0009_similar_questions.sql`](db/migrations/0009_similar_questions.sql) | The pgvector extension, the `question_embeddings` table (384-dimensional vectors, HNSW index), `similar_questions()` for learners, and `admin_similar_questions()` and `admin_embedding_status()` for the admin panel |
+| [`0010_study_plan.sql`](db/migrations/0010_study_plan.sql) | `recommend_topics()`, the "What to study today" ranking for Home and Progress (signed in only) |
+| [`0011_study_plan_exact_cutoffs.sql`](db/migrations/0011_study_plan_exact_cutoffs.sql) | A fix to `recommend_topics()`: mastery and score are worked out in exact `numeric`, so a mastery of exactly 0.7 gets the 7-day interval (it was rounded to `real` first, just under 0.7) |
 
 ## Quality
 
-- **282 unit tests** in 21 files, run with [Vitest](https://vitest.dev). They sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it.
+- **292 unit tests** in 22 files, run with [Vitest](https://vitest.dev). They sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it.
 - **GitHub Actions** ([`ci.yml`](.github/workflows/ci.yml)) runs lint, tests and the production build on every push and pull request to `main`.
 - **oxlint** with the React, TypeScript and oxc plugins ([`.oxlintrc.json`](.oxlintrc.json)).
 - **TypeScript** type-checks the whole app as part of `npm run build`.
@@ -208,10 +211,13 @@ Do this once per Neon project, in the [Neon Console](https://console.neon.tech),
 2. **Enable the Data API.** Open **Data API**, tick **Use Neon Auth**, and click **Enable Data API**.
 3. **Create the schema.** Open the **SQL Editor**, paste in all of [`db/migrations/0001_schema.sql`](db/migrations/0001_schema.sql) and run it. It runs in one transaction, so if it fails nothing is created and you can run it again after fixing the problem.
 4. **Load the seed data.** Run all of [`db/seed.sql`](db/seed.sql): 7 exams with their subjects and topics, 27 formulas and 54 published questions. Run it only once: a second run fails on duplicate slugs and changes nothing.
-5. **Run migrations 0002–0009**, each file in full, once, in order (see [Migrations](#migrations)). `0009` turns on the pgvector extension, which Neon has built in.
+5. **Run migrations 0002–0011**, each file in full, once, in order (see [Migrations](#migrations)), then refresh the schema cache (see below). `0009` turns on the pgvector extension, which Neon has built in.
 6. **Embed the questions**, for similar questions: see [`ml/README.md`](ml/README.md). Until this runs, learners get no similar questions and the admin Overview shows every question as missing an embedding.
 
-The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0009`, then `ml/embed_questions.py`.
+The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0011`, then `ml/embed_questions.py`.
+
+> [!IMPORTANT]
+> **Refresh the schema cache after every migration**, including `0001` and any you run later: in the Neon Console open **Data API** and click **Refresh schema cache**. Until you do, the Data API doesn't know about new or changed functions, and calling one fails with "Could not find the function ... in the schema cache".
 
 > [!CAUTION]
 > **Never run the scripts in [`db/cleanup/`](db/cleanup/).** They were one-off scripts for removing test data before launch. They delete every question above Q1054, every problem report, and every exam, subject, topic and formula that isn't in `seed.sql`. Real questions on the live site start at Q1056, so running them now would delete real content. They are kept only as a record.
@@ -252,7 +258,11 @@ On the admin **Questions** tab, **Export CSV** downloads every question, and **I
 
 An exported file has a `code` column first, which import ignores, and a UTF-8 BOM so Excel shows Hindi and ₹ correctly; save from Excel with **Save As -> CSV UTF-8**. Every row is checked with the editor's rules before anything is saved, a question already in the bank or repeated in the file is flagged, and the import is one request, so it adds all the rows or none.
 
-## Similar questions with embeddings
+## Machine learning
+
+Two features learn from the question bank and from each learner's answers: similar questions, from sentence embeddings, and a study plan, from a scoring model over the learner's attempt history.
+
+### Similar questions with embeddings
 
 After a wrong or revealed answer, VPrep suggests questions that are about the same thing, even when they share few words. It does this with sentence embeddings stored in Postgres.
 
@@ -272,13 +282,36 @@ With the app's 0.3 cut-off, 213 of the 216 questions get at least one suggestion
 
 To set up the Python environment and run the scripts, see [`ml/README.md`](ml/README.md).
 
+### What to study today
+
+Home's **Today's plan** card shows the top 3 topics to practise next, and Progress's **Study plan** the top 5, with a mastery bar each. The ranking is one SQL function, `recommend_topics()` ([`0010`](db/migrations/0010_study_plan.sql), with exact cut-offs since [`0011`](db/migrations/0011_study_plan_exact_cutoffs.sql)), and it is explainable on purpose: it returns every number it used, and the app turns them into the reason shown under each topic ([`src/lib/studyPlan.ts`](src/lib/studyPlan.ts)).
+
+For each topic a learner has answered, using the latest non-skipped answer to each published question:
+
+```text
+mastery  = (credit + 1) / (answered + 2)     credit: independent 1, hint 0.6, incorrect or revealed 0
+interval = 1, 3, 7 or 14 days                for mastery < 0.5, < 0.7, < 0.85, and above
+overdue  = days since last practice / interval
+score    = 0.5 × (1 − mastery) + 0.3 × min(overdue, 2) / 2 + 0.2 × min(open mistakes, 3) / 3
+```
+
+- **Mastery** is the mean of a Beta(1, 1) posterior, i.e. Laplace smoothing: one right and one wrong answer are assumed before any real ones, so a single answer puts a topic at 33% or 67%, not 0% or 100%, and the estimate firms up as answers add up.
+- **Review intervals** are spaced repetition: the better a topic is known, the longer it can wait. `overdue` reaches 1 when the interval has passed and counts up to 2.
+- **Open mistakes** are wrong answers not solved correctly since, as in Revision, counting up to 3.
+- **Kind**, which picks the reason shown: `mistakes` if there are open mistakes, else `weak` below 0.6 mastery, else `due` once overdue, else `review`.
+- **New topics** not answered yet, in exams the learner already practises, score a flat 0.2. Any topic below 0.6 mastery scores more, so weak topics always come first, and new material moves up as the rest gets stronger and recently practised.
+
+Days are counted in the browser's time zone, the same one the Progress page uses. The plan reloads after every new attempt, like the rest of the progress numbers.
+
+**The weights are set by hand**, not learned: 0.5, 0.3 and 0.2, the 0.6 credit for a hint, and the 1/3/7/14-day intervals are reasonable starting points. With enough attempt history they could be fitted instead, for example by training a model to predict whether a learner's next answer in a topic will be correct from mastery, days since practice and open mistakes, and ranking topics by the predicted chance of a wrong answer. It could be checked offline like similar questions: hold out each learner's latest answers and compare against the hand-set score.
+
 ## Project structure
 
 ```
 .github/
   workflows/     ci.yml: lint, test and build on push and pull request
 db/
-  migrations/    0001_schema.sql to 0009_similar_questions.sql, run in order
+  migrations/    0001_schema.sql to 0011_study_plan_exact_cutoffs.sql, run in order
   cleanup/       One-off pre-launch scripts. Never run them again
   seed.sql       Exams, subjects, topics, formulas, the first 54 questions
 docs/
@@ -299,7 +332,7 @@ src/
     practice/    QuestionScreen, OptionList, Summary, status labels and colours,
                  SimilarQuestions, BookmarkButton, ReportProblem, GuestNotice
     test/        TestSetup, TestRunner, TestResult (timed tests)
-    progress/    GoalBubbles (daily goal), Percent
+    progress/    GoalBubbles (daily goal), Percent, StudyPlan (topics to study next)
     account/     RegionSelect (state picker)
     admin/       AdminOverview, QuestionList, QuestionEditor, QuestionPreview,
                  SimilarQuestionsPanel (near-duplicates),
@@ -312,13 +345,14 @@ src/
                  questionCsv.ts (CSV import and export), questions.ts,
                  taxonomy.ts and formulaForm.ts (the database's rules, checked
                  in the forms), similar.ts (similarity and embedding coverage),
+                 studyPlan.ts (the reason shown for each study-plan topic),
                  search.ts, reports.ts, format.ts and helpers
   types/         One interface per table, view and function result,
                  plus a union type for every CHECK constraint
   auth/          AuthProvider, useAuth, RequireAuth, SessionExpiredDialog,
                  redirect.ts (signInHref, safeNext)
   hooks/         Data hooks: useExamCatalog, useTopicProgress, useMyProgress,
-                 usePracticeSet, useSimilarQuestions, useBookmarks,
+                 useStudyPlan, usePracticeSet, useSimilarQuestions, useBookmarks,
                  useLeaderboard, useSearchQuestions, useAdminQuestions,
                  useAdminCatalog, useAdminEmbeddings, …
   test/          Test setup (Neon client stand-in) and fixtures
@@ -383,8 +417,8 @@ Pages that need sign-in are captured by hand at 1440 × 900 and saved under the 
 
 - **Answers are checked in the browser.** Each question is downloaded with its correct option, and the app works out the status before saving it. The database rejects a status that doesn't match the option chosen, but it can't tell whether someone read the answer from the network response first. **Planned:** grade answers on the server, with a function that takes the chosen option and returns the result, and stop sending `answer_index` with unanswered questions.
 - **Embeddings are updated by hand.** A new or edited question gets no similar questions (and its old text is still what's compared) until someone runs `ml/embed_questions.py`; the admin Overview shows when that's due. **Planned:** run it on a schedule, for example a GitHub Actions job with the connection string as a secret.
-- **Next for the machine learning layer** (similar questions are done, above):
-  - **Weak-topic recommendations** from each learner's attempt history.
+- **Next for the machine learning layer** (similar questions and the study plan are done, above):
+  - **Learned study-plan weights**, fitted to how learners actually do on their next answer in a topic instead of set by hand.
   - **Data-driven difficulty**, set from how learners actually do on each question instead of by hand.
 
 ## Author

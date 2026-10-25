@@ -5,12 +5,15 @@ import { StatusBar } from '../components/practice/Summary'
 import { STATUS_ORDER } from '../components/practice/status'
 import { GoalBubbles } from '../components/progress/GoalBubbles'
 import { Percent } from '../components/progress/Percent'
+import { StudyPlanList, StudyPlanSkeleton } from '../components/progress/StudyPlan'
 import { ButtonLink } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Disclosure } from '../components/ui/Disclosure'
 import { LoadError } from '../components/ui/LoadError'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { LoadingLabel, Skeleton } from '../components/ui/Skeleton'
 import { independentPercent, totalsAccuracy, useMyProgress } from '../hooks/useMyProgress'
+import { PLAN_SIZE, useStudyPlan } from '../hooks/useStudyPlan'
 import { accuracyPercent } from '../hooks/useTopicProgress'
 import { cx } from '../lib/cx'
 import { formatDay, formatDuration, plural } from '../lib/format'
@@ -51,16 +54,17 @@ function ProgressPage({ userId, profileGoal }: { userId: string; profileGoal: nu
         <NoProgress />
       ) : (
         // The profile changes as soon as a new goal is saved on Account.
-        <Dashboard progress={progress.data} goal={profileGoal ?? progress.data.daily_goal} />
+        <Dashboard userId={userId} progress={progress.data} goal={profileGoal ?? progress.data.daily_goal} />
       )}
     </>
   )
 }
 
-function Dashboard({ progress, goal }: { progress: MyProgress; goal: number | null }) {
+function Dashboard({ userId, progress, goal }: { userId: string; progress: MyProgress; goal: number | null }) {
   return (
     <div className="flex flex-col gap-6">
       <Kpis progress={progress} />
+      <StudyPlan userId={userId} />
       <Section title="How you solved them">
         <StatusBar counts={statusCounts(progress.totals)} />
       </Section>
@@ -94,6 +98,49 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
         {children}
       </Card>
     </section>
+  )
+}
+
+function StudyPlan({ userId }: { userId: string }) {
+  const plan = useStudyPlan(userId)
+  return (
+    <Section title="Study plan">
+      {plan.status === 'error' ? (
+        <LoadError message={`Couldn't load your study plan. ${plan.error}`} onRetry={plan.retry} />
+      ) : plan.status === 'loading' ? (
+        <StudyPlanSkeleton rows={PLAN_SIZE} />
+      ) : (
+        <StudyPlanList rows={plan.data} showMastery />
+      )}
+      <Disclosure title="How is this chosen?">
+        <div className="flex max-w-prose flex-col gap-3 text-sm text-ink/80">
+          <p>
+            <strong>Mastery</strong> estimates how well you know a topic from your latest answer to each question in
+            it. Solved on your own counts 1, solved with the hint 0.6, and a wrong answer or a viewed answer 0; skips
+            don't count. One right and one wrong answer are added before dividing, so a single answer can't make a
+            topic look mastered or hopeless: one correct answer gives 67%, not 100%.
+          </p>
+          <p>
+            <strong>Review intervals</strong> bring a topic back sooner the less you know it: every day below 50%
+            mastery, every 3 days below 70%, every 7 days below 85%, and every 14 days from there. A topic is due
+            once that many days have passed since you last practised it.
+          </p>
+          <p>
+            <strong>Open mistakes</strong>, questions you got wrong and haven't solved since, push a topic up,
+            counting up to 3.
+          </p>
+          <p>
+            Each topic gets a score: half from how far its mastery is below 100%, 30% from how overdue it is
+            (counting up to twice its interval), and 20% from its open mistakes. The highest scores come first.
+          </p>
+          <p>
+            <strong>New topics</strong> you haven't answered yet, in exams you already practise, get a fixed score.
+            Any topic below 60% mastery scores higher, so weak topics always come first, and new ones move up as the
+            rest get stronger and recently practised.
+          </p>
+        </div>
+      </Disclosure>
+    </Section>
   )
 }
 

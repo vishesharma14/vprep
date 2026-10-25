@@ -285,6 +285,48 @@ export interface MyProgress {
   topics: MyProgressTopic[]
 }
 
+/** Why recommend_topics() picked a topic, in the order the SQL checks them. */
+export type StudyPlanKind =
+  | 'mistakes' // has open mistakes
+  | 'weak' // mastery below 0.6
+  | 'due' // its review interval has passed
+  | 'review' // none of the above
+  | 'new' // not answered yet, in an exam the learner practises
+
+interface StudyPlanTopic {
+  topic_id: string
+  topic_name: string
+  subject_name: string
+  exam_slug: string
+  exam_name: string
+  /** Questions answered, counting the latest non-skipped answer to each. 0 for a new topic. */
+  answered: number
+  /** Questions missed and not solved correctly since the last miss. */
+  open_mistakes: number
+  /** Published questions in the topic not tried yet. */
+  new_questions: number
+  /** Higher needs attention sooner. A new topic scores 0.2. */
+  score: number
+}
+
+/**
+ * A row returned by recommend_topics() (signed in only): a topic to study
+ * next, with every number used to pick it. Highest score first.
+ */
+export type StudyPlanRow = StudyPlanTopic &
+  (
+    | {
+        kind: Exclude<StudyPlanKind, 'new'>
+        /** (credit + 1) / (answered + 2), 0–1: independent = 1, hint = 0.6, otherwise 0. */
+        mastery: number
+        /** Days since the topic was last practised, in the learner's time zone. */
+        days_since: number
+        /** Target days between reviews for this mastery: 1, 3, 7 or 14. */
+        review_interval: number
+      }
+    | { kind: 'new'; mastery: null; days_since: null; review_interval: null }
+  )
+
 /**
  * A row returned by search_questions(): a published question with its place
  * in the catalog. Rows come best match first, then by code.

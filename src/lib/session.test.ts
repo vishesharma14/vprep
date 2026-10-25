@@ -26,9 +26,10 @@ describe('isAuthRejected', () => {
     expect(isAuthRejected({ code, message: 'Something else' }, 400)).toBe(false)
   })
 
-  it('is true when ensure_profile or my_progress sees no signed-in user', () => {
+  it('is true when ensure_profile, my_progress or recommend_topics sees no signed-in user', () => {
     expect(isAuthRejected({ code: 'P0001', message: 'Sign in before creating a profile' }, 400)).toBe(true)
     expect(isAuthRejected({ code: 'P0001', message: 'Sign in to see your progress' }, 400)).toBe(true)
+    expect(isAuthRejected({ code: 'P0001', message: 'Sign in to get a study plan' }, 400)).toBe(true)
   })
 
   it('is false for other database errors', () => {

@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth'
 import { PageHeader } from '../components/layout/PageHeader'
 import { GoalBubbles } from '../components/progress/GoalBubbles'
 import { Percent } from '../components/progress/Percent'
+import { StudyPlanList, StudyPlanSkeleton } from '../components/progress/StudyPlan'
 import { Bubble } from '../components/ui/Bubble'
 import { ButtonLink } from '../components/ui/Button'
 import { Card, CardLink } from '../components/ui/Card'
@@ -14,6 +15,7 @@ import type { AsyncResult } from '../hooks/useAsync'
 import { examTopics, findTopic, useExamCatalog, type CatalogExam } from '../hooks/useExamCatalog'
 import { GLOBAL_SCOPE, notListedMessage, useLeaderboard } from '../hooks/useLeaderboard'
 import { totalsAccuracy, useMyProgress } from '../hooks/useMyProgress'
+import { HOME_PLAN_SIZE, useStudyPlan } from '../hooks/useStudyPlan'
 import { progressTotals, useTopicProgress, type ProgressByTopic } from '../hooks/useTopicProgress'
 import { CATEGORIES } from '../lib/categories'
 import { plural } from '../lib/format'
@@ -33,7 +35,10 @@ export function Home() {
       <Greeting />
 
       {auth.status === 'signed-in' && (
-        <TodayCard userId={auth.user.id} profileGoal={auth.profile?.daily_goal ?? null} />
+        <>
+          <TodayCard userId={auth.user.id} profileGoal={auth.profile?.daily_goal ?? null} />
+          <PlanCard userId={auth.user.id} />
+        </>
       )}
 
       {progress.status === 'error' ? (
@@ -194,6 +199,34 @@ function TodayCardSkeleton() {
         </div>
       </Card>
     </div>
+  )
+}
+
+/** The first few topics of the study plan (recommend_topics), each with why it was picked. */
+function PlanCard({ userId }: { userId: string }) {
+  const plan = useStudyPlan(userId)
+
+  if (plan.status === 'error') {
+    return (
+      <section className="mb-6">
+        <LoadError message={`Couldn't load today's plan. ${plan.error}`} onRetry={plan.retry} />
+      </section>
+    )
+  }
+
+  return (
+    <section aria-labelledby="plan" className="mb-6">
+      <Card className="flex flex-col gap-4">
+        <h2 id="plan" className={labelClass}>
+          Today's plan
+        </h2>
+        {plan.status === 'loading' ? (
+          <StudyPlanSkeleton rows={HOME_PLAN_SIZE} />
+        ) : (
+          <StudyPlanList rows={plan.data.slice(0, HOME_PLAN_SIZE)} />
+        )}
+      </Card>
+    </section>
   )
 }
 
