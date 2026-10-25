@@ -21,20 +21,13 @@ export interface PracticeQuestion extends Question {
   formula: Formula | null
 }
 
-/** The fields needed to suggest a question as similar. */
-export type SimilarQuestion = Pick<Question, 'id' | 'code' | 'topic_id' | 'subtopic' | 'tags' | 'body' | 'difficulty'>
-
 export interface PracticeSet {
   /** In practice order: never-attempted first, then by code. */
   questions: PracticeQuestion[]
-  /** Every published question in the same topics, for "Similar questions". */
-  pool: SimilarQuestion[]
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const isUuid = (value: string) => UUID.test(value)
-
-const SIMILAR_FIELDS = 'id, code, topic_id, subtopic, tags, body, difficulty'
 
 /** Q999 before Q1000. */
 const byCode = new Intl.Collator('en', { numeric: true }).compare
@@ -83,16 +76,6 @@ async function fetchQuestions(filter: { topicIds: string[] } | { ids: string[] }
   return data as QuestionRow[]
 }
 
-async function fetchPool(topicIds: string[]) {
-  const { data, error, status } = await neon
-    .from('questions')
-    .select(SIMILAR_FIELDS)
-    .eq('status', 'published')
-    .in('topic_id', topicIds)
-  if (error) throw new Error(dbErrorMessage(error, status))
-  return data as SimilarQuestion[]
-}
-
 /** The questions, out of `questionIds`, the learner has attempted before. */
 async function fetchAttempted(userId: string, questionIds: string[]) {
   // Admins can read everyone's attempts, so filter to the learner's own.
@@ -105,7 +88,7 @@ async function fetchAttempted(userId: string, questionIds: string[]) {
   return new Set((data as Array<{ question_id: string }>).map((row) => row.question_id))
 }
 
-const EMPTY_SET: PracticeSet = { questions: [], pool: [] }
+const EMPTY_SET: PracticeSet = { questions: [] }
 
 async function loadPracticeSet(scope: PracticeScope, userId: string | null): Promise<PracticeSet> {
   const exams = await loadCatalog()
@@ -121,16 +104,11 @@ async function loadPracticeSet(scope: PracticeScope, userId: string | null): Pro
   })
   if (questions.length === 0) return EMPTY_SET
 
-  const [attempted, pool] = await Promise.all([
-    userId ? fetchAttempted(userId, questions.map((q) => q.id)) : new Set<string>(),
-    // A topic, subject or exam already loaded whole topics.
-    topicIds ? questions : fetchPool([...new Set(questions.map((q) => q.topic_id))]),
-  ])
-
+  const attempted = userId ? await fetchAttempted(userId, questions.map((q) => q.id)) : new Set<string>()
   questions.sort(
     (a, b) => Number(attempted.has(a.id)) - Number(attempted.has(b.id)) || byCode(a.code, b.code),
   )
-  return { questions, pool }
+  return { questions }
 }
 
 // Waits for the session, so signed-in learners get their own order.
@@ -146,20 +124,4 @@ export function usePracticeSet(scope: PracticeScope) {
     [ready, scope, userId],
   )
   return useAsync(load)
-}
-
-/**
- * Up to `limit` other questions from the same topic, those sharing the
- * subtopic or a tag first, then by code.
- */
-export function similarQuestions(question: Question, pool: SimilarQuestion[], limit = 3) {
-  const score = (other: SimilarQuestion) =>
-    (question.subtopic !== null && other.subtopic === question.subtopic ? 2 : 0) +
-    (other.tags.some((tag) => question.tags.includes(tag)) ? 1 : 0)
-  return pool
-    .filter((other) => other.topic_id === question.topic_id && other.id !== question.id)
-    .map((other) => ({ other, score: score(other) }))
-    .sort((a, b) => b.score - a.score || byCode(a.other.code, b.other.code))
-    .slice(0, limit)
-    .map(({ other }) => other)
 }

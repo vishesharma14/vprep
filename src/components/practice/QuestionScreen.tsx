@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useBookmarkToggle } from '../../hooks/useBookmarks'
-import { similarQuestions, type PracticeQuestion, type SimilarQuestion } from '../../hooks/usePracticeSet'
+import type { PracticeQuestion } from '../../hooks/usePracticeSet'
 import { answerStatus, optionLetter } from '../../lib/attempts'
 import { cx } from '../../lib/cx'
 import { plural } from '../../lib/format'
+import { offersSimilar } from '../../lib/similar'
 import { ATTEMPT_POINTS, type AttemptStatus } from '../../types'
-import { Button, ButtonLink } from '../ui/Button'
+import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Disclosure } from '../ui/Disclosure'
 import { CheckIcon, CrossIcon, EyeIcon } from '../ui/Icon'
@@ -15,6 +16,7 @@ import { FormulaExpression } from './FormulaExpression'
 import { OptionList } from './OptionList'
 import { QuestionTags } from './QuestionTags'
 import { ReportButton, ReportForm } from './ReportProblem'
+import { SimilarQuestions } from './SimilarQuestions'
 import { STATUS_LABEL } from './status'
 
 /** How one question ended. */
@@ -57,8 +59,6 @@ const ACTIVATES_ON_ENTER = 'button, a, summary'
 
 interface QuestionScreenProps {
   question: PracticeQuestion
-  /** Questions to suggest under "Similar questions". */
-  pool: SimilarQuestion[]
   /** 0-based position in the session. */
   position: number
   total: number
@@ -74,7 +74,6 @@ interface QuestionScreenProps {
 /** One question: attempt it, then see how it went. Mount a fresh one per question. */
 export function QuestionScreen({
   question,
-  pool,
   position,
   total,
   done,
@@ -281,9 +280,6 @@ export function QuestionScreen({
                   {question.formula.note && <p className="mt-2 text-sm text-ink/70">{question.formula.note}</p>}
                 </Disclosure>
               )}
-              <Disclosure title="Similar questions">
-                <SimilarList similar={similarQuestions(question, pool)} />
-              </Disclosure>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
@@ -325,6 +321,9 @@ export function QuestionScreen({
           </div>
         )}
       </Card>
+
+      {/* Below the question, so it doesn't push the Next button down when it arrives. */}
+      {outcome && offersSimilar(outcome.status) && <SimilarQuestions questionId={question.id} />}
     </article>
   )
 }
@@ -339,7 +338,7 @@ function verdictDetail({ status, selectedIndex }: Outcome, signedIn: boolean) {
         ? `Worth ${points('hint')} instead of ${ATTEMPT_POINTS.independent}, as you opened the hint.`
         : 'You opened the hint first.'
     case 'incorrect':
-      return `You chose ${optionLetter(selectedIndex ?? 0)}. Read the explanation, then try a similar question.`
+      return `You chose ${optionLetter(selectedIndex ?? 0)}. Read the explanation to see why.`
     case 'revealed':
       return signedIn
         ? `Worth ${points('revealed')}, and it doesn't count toward your accuracy.`
@@ -364,32 +363,5 @@ function RevealConfirm({ onKeepTrying, onReveal }: { onKeepTrying: () => void; o
         </Button>
       </div>
     </div>
-  )
-}
-
-function SimilarList({ similar }: { similar: SimilarQuestion[] }) {
-  if (similar.length === 0) return <p className="text-sm text-ink/70">No other questions in this topic yet.</p>
-  return (
-    <ul className="flex flex-col gap-3">
-      {similar.map((q) => (
-        <li key={q.id} className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-mono text-xs text-ink/60">
-              {q.code} · {q.difficulty}
-            </p>
-            <p className="line-clamp-2 break-words text-sm">{q.body}</p>
-          </div>
-          <ButtonLink
-            to={`/practice?q=${q.id}`}
-            variant="secondary"
-            size="sm"
-            aria-label={`Try ${q.code}`}
-            className="shrink-0"
-          >
-            Try
-          </ButtonLink>
-        </li>
-      ))}
-    </ul>
   )
 }

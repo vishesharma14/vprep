@@ -33,6 +33,7 @@ Most practice apps score a right answer the same way whether you worked it out, 
 
 - **Browse by goal and exam**, down to subjects, topics and subtopics, with question counts.
 - **Practise** a topic, a subject or a whole exam. Options are OMR-style bubbles; use the hint, show the answer or skip. Keyboard shortcuts: A–D or 1–4 to choose, Enter to submit, H for the hint. Each answer is followed by the explanation and, where there is one, the formula it uses.
+- **Similar questions** after a wrong answer or a revealed one: up to 3 published questions from the same exam that are closest in meaning, found with sentence embeddings (see [Similar questions with embeddings](#similar-questions-with-embeddings)). Questions you have already solved are left out, and **Practise these** starts a set of exactly those.
 - **Practise as a guest**, with no account. Signing in saves every answer.
 - **Timed tests**: 5, 10, 15 or all questions, picked at random, at 45, 60 or 90 seconds each. A refresh resumes the test with the same deadline. Answers and explanations appear after you submit.
 - **Revision**: bookmarks in named lists, and a mistakes notebook with "Practise all open mistakes".
@@ -71,9 +72,9 @@ Most practice apps score a right answer the same way whether you worked it out, 
 
 ### For admins
 
-- **Overview**: questions by status, open reports, explanation coverage and questions per exam.
+- **Overview**: questions by status, open reports, explanation coverage, embedding coverage (with the command to run when some are missing or out of date) and questions per exam.
 - **Question bank**: search, filter by exam and status, and sort by most reported or lowest accuracy to find questions that are wrong or too hard.
-- **Question editor** with a preview of the answered question. It checks the same rules as the database, and moves questions through draft, in review and published.
+- **Question editor** with a preview of the answered question. It checks the same rules as the database, and moves questions through draft, in review and published. A saved question also lists its 5 nearest questions in any exam and status, with 90% similar or more marked as a possible duplicate.
 - **CSV import and export**: import up to 500 questions at once, checked row by row and saved all or nothing; export the whole bank. See [Importing and exporting questions](#importing-and-exporting-questions).
 - **Exams, subjects and topics** as a tree, and a **formula manager**.
 - **Reports** from learners, to resolve or dismiss.
@@ -110,7 +111,8 @@ The live site has **7 exams, 17 subjects, 32 topics, 216 questions and 27 formul
 | Styling    | Tailwind CSS v4 through `@tailwindcss/vite`; design tokens in `src/index.css` |
 | Sign-in    | Neon Auth: email and password, email verification and password reset by code |
 | Data       | Neon Data API (PostgREST-compatible), called from the browser with `@neondatabase/neon-js` |
-| Database   | [Neon](https://neon.tech) Postgres: Row Level Security, SQL functions, views and triggers |
+| Database   | [Neon](https://neon.tech) Postgres: Row Level Security, SQL functions, views and triggers; pgvector for embeddings |
+| ML         | Python 3 scripts run offline: sentence-transformers (`all-MiniLM-L6-v2`) for embeddings, scikit-learn for the TF-IDF baseline |
 | CSV        | Papa Parse |
 | Hosting    | Vercel, with Vercel Web Analytics |
 | Quality    | Vitest, oxlint, GitHub Actions |
@@ -129,16 +131,18 @@ flowchart LR
   User -->|"queries and RPC calls<br/>with the JWT"| API["Neon Data API"]
   API -->|"as role anonymous or authenticated"| PG[("Postgres<br/>RLS on every table")]
   Auth -->|"users in the neon_auth schema"| PG
+  ML["ml/ scripts<br/>(Python, run offline)"] -->|"question embeddings,<br/>as the database owner"| PG
 ```
 
 1. Vercel serves the built app. Every path outside `/assets/` gets `index.html`, so deep links work.
 2. Neon Auth signs learners in and issues a JWT. Signed-out visitors get an anonymous token (`allowAnonymous: true` in [`src/lib/neon.ts`](src/lib/neon.ts)).
 3. The Data API checks the JWT and runs each query as the `anonymous` or `authenticated` role. Row Level Security policies, table grants and SQL functions decide what comes back.
+4. The embedding script in [`ml/`](ml/) runs on a developer's machine, not in the app. It writes one vector per question, and the app reads the nearest ones through SQL functions.
 
 ## Security and data design
 
-- **Row Level Security on every table.** All 10 tables have RLS turned on, with table grants as a second lock. Anyone can read exams, subjects, topics, formulas and **published** questions; drafts are admin-only. Attempts, bookmarks and reports are visible only to their owner (and admins).
-- **`SECURITY DEFINER` helpers, kept narrow.** `current_user_id()`, `is_admin()`, `is_active_user()`, `ensure_profile()`, `get_leaderboard()`, `admin_users()` and `admin_question_stats()` run as the owner, with `search_path` set to `''`. The admin functions raise "Admins only" for anyone else. Views and the progress and search functions run with the caller's permissions, so RLS still applies.
+- **Row Level Security on every table.** All 11 tables have RLS turned on, with table grants as a second lock. Anyone can read exams, subjects, topics, formulas and **published** questions; drafts are admin-only. Attempts, bookmarks and reports are visible only to their owner (and admins). `question_embeddings` has no policies and no grants at all: only the owner (the embedding script) and the similar-question functions read it.
+- **`SECURITY DEFINER` helpers, kept narrow.** `current_user_id()`, `is_admin()`, `is_active_user()`, `ensure_profile()`, `get_leaderboard()`, `admin_users()`, `admin_question_stats()`, `similar_questions()`, `admin_similar_questions()` and `admin_embedding_status()` run as the owner, with `search_path` set to `''`. The admin functions raise "Admins only" for anyone else, and `similar_questions()` only ever returns published questions. Views and the progress and search functions run with the caller's permissions, so RLS still applies.
 - **Insert-only attempts.** Learners can insert and read their own attempts, never update or delete them. The `validate_attempt()` trigger allows attempts only on published questions, checks that a correct status has the correct option and an incorrect one a wrong option, and sets `created_at` itself.
 - **Protected roles.** A trigger stops learners from changing their own role or suspension. Suspended accounts can't save attempts or file reports.
 - **Leaderboard privacy.** The public leaderboard shows a short name ("Vishesh S.") and an `is_me` flag instead of full names and account ids, and leaves out learners with no points and suspended accounts (migration 0008).
@@ -158,10 +162,11 @@ flowchart LR
 | [`0006_search_formulas.sql`](db/migrations/0006_search_formulas.sql) | `search_questions()`, the `formula_catalog` view, and a leaderboard fix |
 | [`0007_admin.sql`](db/migrations/0007_admin.sql) | `admin_users()` and `admin_question_stats()` for the admin panel, and a block on deleting questions that have attempts |
 | [`0008_leaderboard_privacy.sql`](db/migrations/0008_leaderboard_privacy.sql) | A new `get_leaderboard()` for the public leaderboard: short names and `is_me` instead of full names and account ids, and no learners with 0 points |
+| [`0009_similar_questions.sql`](db/migrations/0009_similar_questions.sql) | The pgvector extension, the `question_embeddings` table (384-dimensional vectors, HNSW index), `similar_questions()` for learners, and `admin_similar_questions()` and `admin_embedding_status()` for the admin panel |
 
 ## Quality
 
-- **277 unit tests** in 20 files, run with [Vitest](https://vitest.dev). They sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it.
+- **282 unit tests** in 21 files, run with [Vitest](https://vitest.dev). They sit next to the code they test (`src/lib/slug.test.ts` for `src/lib/slug.ts`) and run in Node with no `.env` and no network: [`src/test/setup.ts`](src/test/setup.ts) swaps the Neon client for a stand-in that fails any test that calls it.
 - **GitHub Actions** ([`ci.yml`](.github/workflows/ci.yml)) runs lint, tests and the production build on every push and pull request to `main`.
 - **oxlint** with the React, TypeScript and oxc plugins ([`.oxlintrc.json`](.oxlintrc.json)).
 - **TypeScript** type-checks the whole app as part of `npm run build`.
@@ -203,9 +208,10 @@ Do this once per Neon project, in the [Neon Console](https://console.neon.tech),
 2. **Enable the Data API.** Open **Data API**, tick **Use Neon Auth**, and click **Enable Data API**.
 3. **Create the schema.** Open the **SQL Editor**, paste in all of [`db/migrations/0001_schema.sql`](db/migrations/0001_schema.sql) and run it. It runs in one transaction, so if it fails nothing is created and you can run it again after fixing the problem.
 4. **Load the seed data.** Run all of [`db/seed.sql`](db/seed.sql): 7 exams with their subjects and topics, 27 formulas and 54 published questions. Run it only once: a second run fails on duplicate slugs and changes nothing.
-5. **Run migrations 0002–0008**, each file in full, once, in order (see [Migrations](#migrations)).
+5. **Run migrations 0002–0009**, each file in full, once, in order (see [Migrations](#migrations)). `0009` turns on the pgvector extension, which Neon has built in.
+6. **Embed the questions**, for similar questions: see [`ml/README.md`](ml/README.md). Until this runs, learners get no similar questions and the admin Overview shows every question as missing an embedding.
 
-The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0008`.
+The full order is: `0001_schema.sql`, `seed.sql`, then `0002` to `0009`, then `ml/embed_questions.py`.
 
 > [!CAUTION]
 > **Never run the scripts in [`db/cleanup/`](db/cleanup/).** They were one-off scripts for removing test data before launch. They delete every question above Q1054, every problem report, and every exam, subject, topic and formula that isn't in `seed.sql`. Real questions on the live site start at Q1056, so running them now would delete real content. They are kept only as a record.
@@ -246,17 +252,41 @@ On the admin **Questions** tab, **Export CSV** downloads every question, and **I
 
 An exported file has a `code` column first, which import ignores, and a UTF-8 BOM so Excel shows Hindi and ₹ correctly; save from Excel with **Save As -> CSV UTF-8**. Every row is checked with the editor's rules before anything is saved, a question already in the bank or repeated in the file is flagged, and the import is one request, so it adds all the rows or none.
 
+## Similar questions with embeddings
+
+After a wrong or revealed answer, VPrep suggests questions that are about the same thing, even when they share few words. It does this with sentence embeddings stored in Postgres.
+
+1. **Embed offline.** [`ml/embed_questions.py`](ml/embed_questions.py) turns each question's text and options (not its topic name) into a 384-number vector with [`all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), normalised, and upserts it into `question_embeddings`. It stores an md5 of the model name and the text, so later runs only embed new and changed questions.
+2. **Search in the database.** `similar_questions()` ranks the other published questions in the same exam by cosine similarity with pgvector's `<=>`, drops matches below 0.3 rather than padding the list, and leaves out questions the signed-in learner has already solved. It works signed out too.
+3. **Show it.** The practice screen loads up to 3 in the background once a question is answered wrong or revealed, and hides the card when there are none. Admins see each saved question's 5 nearest neighbours in the editor, to catch duplicates, and the Overview shows how many questions are missing an embedding or changed since theirs was made.
+
+**Does it work?** [`ml/evaluate_similarity.py`](ml/evaluate_similarity.py) takes each published question's 3 nearest neighbours in its exam, as the app does, and measures how many share its topic and its subject (precision@3), for the stored embeddings against a TF-IDF baseline on the same text and against chance. Because the topic name is never embedded, a high score means questions find their topic from their content alone. On the 216 published questions (October 2026):
+
+| Method | Precision@3, same topic | Precision@3, same subject |
+| ------ | ----------------------: | ------------------------: |
+| Chance (random questions from the same exam) | 19.7% | 43.9% |
+| TF-IDF baseline | 76.1% | 90.4% |
+| MiniLM embeddings | **92.1%** | **96.9%** |
+
+With the app's 0.3 cut-off, 213 of the 216 questions get at least one suggestion (2.8 on average), and 93.1% of the suggestions shown are from the same topic. Details: [`ml/results.md`](ml/results.md).
+
+To set up the Python environment and run the scripts, see [`ml/README.md`](ml/README.md).
+
 ## Project structure
 
 ```
 .github/
   workflows/     ci.yml: lint, test and build on push and pull request
 db/
-  migrations/    0001_schema.sql to 0008_leaderboard_privacy.sql, run in order
+  migrations/    0001_schema.sql to 0009_similar_questions.sql, run in order
   cleanup/       One-off pre-launch scripts. Never run them again
   seed.sql       Exams, subjects, topics, formulas, the first 54 questions
 docs/
   screenshots/   README screenshots
+ml/              Python, run offline (own venv in ml/.venv, settings in ml/.env)
+  embed_questions.py      Embeds new and changed questions into question_embeddings
+  evaluate_similarity.py  Precision@3 of the embeddings vs TF-IDF, written to results.md
+  common.py               Database connection and the text that gets embedded
 scripts/
   og-image.html  Template for public/og-image.png, the link preview image
   screenshots.mjs  Takes the README screenshots with headless Chrome
@@ -267,11 +297,12 @@ src/
     layout/      AppShell (sidebar on desktop, bottom tab bar on mobile),
                  PageHeader, nav config, ErrorBoundary
     practice/    QuestionScreen, OptionList, Summary, status labels and colours,
-                 BookmarkButton, ReportProblem, GuestNotice
+                 SimilarQuestions, BookmarkButton, ReportProblem, GuestNotice
     test/        TestSetup, TestRunner, TestResult (timed tests)
     progress/    GoalBubbles (daily goal), Percent
     account/     RegionSelect (state picker)
     admin/       AdminOverview, QuestionList, QuestionEditor, QuestionPreview,
+                 SimilarQuestionsPanel (near-duplicates),
                  QuestionImport (CSV import with preview), TaxonomyTree
                  (exams > subjects > topics), FormulaManager, ReportList,
                  UserList, ScrollTable (table with pinned actions)
@@ -280,14 +311,16 @@ src/
                  session.ts (token refresh), timedTest.ts (saved test state),
                  questionCsv.ts (CSV import and export), questions.ts,
                  taxonomy.ts and formulaForm.ts (the database's rules, checked
-                 in the forms), search.ts, reports.ts, format.ts and helpers
+                 in the forms), similar.ts (similarity and embedding coverage),
+                 search.ts, reports.ts, format.ts and helpers
   types/         One interface per table, view and function result,
                  plus a union type for every CHECK constraint
   auth/          AuthProvider, useAuth, RequireAuth, SessionExpiredDialog,
                  redirect.ts (signInHref, safeNext)
   hooks/         Data hooks: useExamCatalog, useTopicProgress, useMyProgress,
-                 usePracticeSet, useBookmarks, useLeaderboard,
-                 useSearchQuestions, useAdminQuestions, useAdminCatalog, …
+                 usePracticeSet, useSimilarQuestions, useBookmarks,
+                 useLeaderboard, useSearchQuestions, useAdminQuestions,
+                 useAdminCatalog, useAdminEmbeddings, …
   test/          Test setup (Neon client stand-in) and fixtures
   App.tsx        Router; every page except Home is loaded on demand
   index.css      Tailwind import + design tokens
@@ -349,8 +382,8 @@ Pages that need sign-in are captured by hand at 1440 × 900 and saved under the 
 ## Known limitations and roadmap
 
 - **Answers are checked in the browser.** Each question is downloaded with its correct option, and the app works out the status before saving it. The database rejects a status that doesn't match the option chosen, but it can't tell whether someone read the answer from the network response first. **Planned:** grade answers on the server, with a function that takes the chosen option and returns the result, and stop sending `answer_index` with unanswered questions.
-- **Next: a machine learning layer.**
-  - **Similar questions** found with text embeddings, for "try a similar question" after a mistake.
+- **Embeddings are updated by hand.** A new or edited question gets no similar questions (and its old text is still what's compared) until someone runs `ml/embed_questions.py`; the admin Overview shows when that's due. **Planned:** run it on a schedule, for example a GitHub Actions job with the connection string as a secret.
+- **Next for the machine learning layer** (similar questions are done, above):
   - **Weak-topic recommendations** from each learner's attempt history.
   - **Data-driven difficulty**, set from how learners actually do on each question instead of by hand.
 

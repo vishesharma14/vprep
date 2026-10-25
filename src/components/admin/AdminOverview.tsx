@@ -1,12 +1,16 @@
 import { useId, type ReactNode } from 'react'
+import { useEmbeddingStatus } from '../../hooks/useAdminEmbeddings'
 import type { AdminQuestion } from '../../hooks/useAdminQuestions'
 import { topicPlaces, type CatalogExam } from '../../hooks/useExamCatalog'
 import { cx } from '../../lib/cx'
 import { plural } from '../../lib/format'
 import { canPublish } from '../../lib/questions'
+import { EMBED_COMMAND, embeddingCoverage } from '../../lib/similar'
+import type { EmbeddingStatus } from '../../types'
 import { Percent } from '../progress/Percent'
 import { ButtonLink } from '../ui/Button'
 import { Card } from '../ui/Card'
+import { LoadError } from '../ui/LoadError'
 import { ProgressBar } from '../ui/ProgressBar'
 import { LoadingLabel, Skeleton } from '../ui/Skeleton'
 
@@ -21,7 +25,7 @@ interface AdminOverviewProps {
   questions: AdminQuestion[]
 }
 
-/** Content at a glance: counts, explanation coverage and questions per exam. */
+/** Content at a glance: counts, explanation and embedding coverage, and questions per exam. */
 export function AdminOverview({ exams, questions }: AdminOverviewProps) {
   const count = (status: AdminQuestion['status']) => questions.filter((q) => q.status === status).length
   const openReports = sum(questions, (q) => q.open_reports)
@@ -56,6 +60,8 @@ export function AdminOverview({ exams, questions }: AdminOverviewProps) {
         </p>
       </Section>
 
+      <EmbeddingCoverage />
+
       <QuestionsPerExam exams={exams} questions={questions} />
     </div>
   )
@@ -82,6 +88,62 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
         {children}
       </Card>
     </section>
+  )
+}
+
+/** How many questions have an embedding for similar questions. Loads its own data. */
+function EmbeddingCoverage() {
+  const status = useEmbeddingStatus()
+  return (
+    <Section title="Embedding coverage">
+      {status.status === 'loading' ? (
+        <>
+          <LoadingLabel>Loading embedding coverage…</LoadingLabel>
+          <Skeleton className="h-9 w-20" />
+          <Skeleton className="h-1.5 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </>
+      ) : status.status === 'error' ? (
+        <LoadError message={`Couldn't load the embedding coverage. ${status.error}`} onRetry={status.retry} />
+      ) : (
+        <CoverageDetails status={status.data} />
+      )}
+    </Section>
+  )
+}
+
+function CoverageDetails({ status }: { status: EmbeddingStatus }) {
+  const { upToDate, percent, needsRun } = embeddingCoverage(status)
+  const behind = [
+    status.missing > 0 && `${plural(status.missing, 'question')} ${status.missing === 1 ? 'has' : 'have'} none`,
+    status.stale > 0 && `${plural(status.stale, 'question')} changed after being embedded`,
+  ].filter(Boolean)
+
+  return (
+    <>
+      <p className="font-display text-3xl font-bold">
+        <Percent value={percent} />
+      </p>
+      <ProgressBar value={upToDate} max={status.questions} />
+      <p className="break-words text-sm text-ink/70">
+        {upToDate} of {plural(status.questions, 'question')} {upToDate === 1 ? 'has' : 'have'} an up-to-date
+        embedding{status.model && <>, from <span className="font-mono">{status.model}</span></>}. Similar questions
+        are found from these.
+      </p>
+      {needsRun ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm">
+            {behind.join(' and ')}. Run this from the project folder with <code className="font-mono">ml/.venv</code>{' '}
+            active, then reload:
+          </p>
+          <pre className="overflow-x-auto rounded-lg bg-ink/5 px-3 py-2 font-mono text-sm">
+            <code>{EMBED_COMMAND}</code>
+          </pre>
+        </div>
+      ) : (
+        <p className="text-sm text-ok">Every question is up to date.</p>
+      )}
+    </>
   )
 }
 
@@ -137,7 +199,7 @@ export function AdminOverviewSkeleton() {
           </Card>
         ))}
       </div>
-      {[0, 1].map((i) => (
+      {[0, 1, 2].map((i) => (
         <Card key={i} className="flex flex-col gap-4">
           <Skeleton className="h-6 w-48" />
           {Array.from({ length: 3 }, (_, j) => (

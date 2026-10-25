@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useBlocker, useLocation, useNavigate } from 'react-router-dom'
 import { useAsync } from '../../hooks/useAsync'
+import { useAdminSimilarQuestions } from '../../hooks/useAdminEmbeddings'
 import { saveQuestion, type AdminQuestion } from '../../hooks/useAdminQuestions'
 import { findTopic, type CatalogExam } from '../../hooks/useExamCatalog'
 import { optionLetter } from '../../lib/attempts'
@@ -18,6 +19,7 @@ import {
   YEAR_MIN,
   type QuestionForm,
 } from '../../lib/questions'
+import { isPossibleDuplicate, similarityPercent } from '../../lib/similar'
 import type { Difficulty, Formula, Question, QuestionStatus, QuestionType } from '../../types'
 import { Bubble } from '../ui/Bubble'
 import { Button, ButtonLink } from '../ui/Button'
@@ -31,6 +33,7 @@ import { LoadingLabel, Skeleton } from '../ui/Skeleton'
 import { DEFAULT_LIST, listSearchOf } from './listSearch'
 import { QuestionPreview } from './QuestionPreview'
 import type { SavedNotice } from './QuestionList'
+import { SimilarQuestionsPanel } from './SimilarQuestionsPanel'
 import { StatusPill } from './StatusPill'
 
 const DIFFICULTIES: Array<{ value: Difficulty; label: string }> = [
@@ -148,6 +151,8 @@ function EditorForm({ question, exams, questions, formulas }: EditorFormProps) {
   const [saving, setSaving] = useState(false)
   // Set once saved, so leaving for the list isn't stopped.
   const saved = useRef(false)
+  const similar = useAdminSimilarQuestions(question?.id ?? null)
+  const duplicates = similar.status === 'ready' ? similar.data.filter((q) => isPossibleDuplicate(q.similarity)) : []
   const ids = useId()
   const fieldId = (name: string) => `${ids}-${name}`
 
@@ -246,6 +251,13 @@ function EditorForm({ question, exams, questions, formulas }: EditorFormProps) {
         <Notice tone="info">
           Learners have attempted this question {plural(question.attempts, 'time')}. Their saved results stay as they
           are if you change the answer.
+        </Notice>
+      )}
+      {duplicates.length > 0 && (
+        <Notice tone="info">
+          Possible duplicate of{' '}
+          {duplicates.map((q) => `${q.code} (${similarityPercent(q.similarity)}% similar)`).join(', ')}. Compare them
+          under Similar questions, below the form.
         </Notice>
       )}
 
@@ -497,6 +509,8 @@ function EditorForm({ question, exams, questions, formulas }: EditorFormProps) {
           <QuestionPreview form={form} code={question?.code ?? null} exams={exams} formulas={formulas} />
         </PreviewPanel>
       </div>
+
+      {question && <SimilarQuestionsPanel similar={similar} listSearch={listSearch} />}
 
       {blocker.state === 'blocked' && <LeaveDialog onStay={blocker.reset} onLeave={blocker.proceed} />}
     </div>

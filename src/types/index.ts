@@ -345,6 +345,44 @@ export interface AdminUserRow {
 }
 
 /**
+ * A row returned by similar_questions(): a published question like the one
+ * asked about, in the same exam, most similar first. Leaves out questions the
+ * signed-in learner has already solved, and matches below 0.3.
+ */
+export interface SimilarQuestionRow extends Pick<Question, 'id' | 'code' | 'body' | 'difficulty' | 'topic_id'> {
+  topic_name: string
+  exam_slug: string
+  exam_name: string
+  /** Cosine similarity of the embeddings, up to 1. */
+  similarity: number
+}
+
+/**
+ * A row returned by admin_similar_questions() (admins only): the nearest
+ * questions of any status, in any exam, most similar first.
+ */
+export interface AdminSimilarQuestionRow extends Pick<Question, 'id' | 'code' | 'body' | 'status'> {
+  topic_name: string
+  exam_name: string
+  /** Cosine similarity of the embeddings, up to 1. */
+  similarity: number
+}
+
+/** What admin_embedding_status() returns (admins only). bigints, returned as numbers. */
+export interface EmbeddingStatus {
+  /** Every question, of any status. */
+  questions: number
+  /** Questions with an embedding. */
+  embedded: number
+  /** Questions without one. */
+  missing: number
+  /** Questions changed since their embedding was made. */
+  stale: number
+  /** The models used, comma-separated; null before the first embedding. */
+  model: string | null
+}
+
+/**
  * A row returned by get_leaderboard(). The leaderboard is public, so it has
  * no account id or full name; learners with 0 points aren't listed.
  */

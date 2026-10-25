@@ -49,7 +49,7 @@ type SaveState = { status: 'saving' } | { status: 'saved' } | { status: 'failed'
 function PracticeSession({ set, signedIn }: { set: PracticeSet; signedIn: boolean }) {
   const { signInCount } = useAuth()
   const navigate = useNavigate()
-  const { questions, pool } = set
+  const { questions } = set
   const [index, setIndex] = useState(0)
   const [results, setResults] = useState<PracticeResult[]>([])
   // Keyed by position in `results`.
@@ -127,7 +127,6 @@ function PracticeSession({ set, signedIn }: { set: PracticeSet; signedIn: boolea
         <QuestionScreen
           key={question.id}
           question={question}
-          pool={pool}
           position={index}
           total={questions.length}
           done={results.length}
